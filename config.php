@@ -19,15 +19,7 @@ define('MAX_FILE_SIZE', 10 * 1024 * 1024); // 10MB
 define('ALLOWED_EXTENSIONS', ['jpg', 'jpeg', 'png', 'gif', 'pdf']);
 
 // Database configuration
-require_once('/home/blkfarms/secure/db_config_dev.php');
-
-// Add this to your config.php to test database connection
-try {
-    $db = Database::getInstance()->getConnection();
-    echo "Database connected successfully<br>";
-} catch (Exception $e) {
-    echo "Database connection failed: " . $e->getMessage() . "<br>";
-}
+require_once('/home/blkfarms/secure/db_config.php');
 
 class Database {
     private static $instance = null;
@@ -142,17 +134,35 @@ class UserManager {
     }
     
     public function register($username, $email, $password, $fullName = '') {
-        // Check if user exists
-        $stmt = $this->db->prepare("SELECT COUNT(*) FROM users WHERE username = ? OR email = ?");
-        $stmt->execute([$username, $email]);
-        
-        if ($stmt->fetchColumn() > 0) {
-            return false; // User already exists
+        try {
+            // Check if user exists
+            $stmt = $this->db->prepare("SELECT COUNT(*) FROM users WHERE username = ? OR email = ?");
+            $stmt->execute([$username, $email]);
+            
+            if ($stmt->fetchColumn() > 0) {
+                error_log("Registration failed: User already exists - $username, $email");
+                return false; // User already exists
+            }
+            
+            // Hash password
+            $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+            
+            // Insert new user
+            $stmt = $this->db->prepare("INSERT INTO users (username, email, password_hash, full_name, is_active, created_at) VALUES (?, ?, ?, ?, 1, NOW())");
+            $result = $stmt->execute([$username, $email, $passwordHash, $fullName]);
+            
+            if ($result) {
+                error_log("User registered successfully: $username");
+                return true;
+            } else {
+                error_log("Registration failed: Database insert failed for $username");
+                return false;
+            }
+            
+        } catch (Exception $e) {
+            error_log("Registration error: " . $e->getMessage());
+            throw new Exception("Registration failed: " . $e->getMessage());
         }
-        
-        $passwordHash = password_hash($password, PASSWORD_DEFAULT);
-        $stmt = $this->db->prepare("INSERT INTO users (username, email, password_hash, full_name) VALUES (?, ?, ?, ?)");
-        return $stmt->execute([$username, $email, $passwordHash, $fullName]);
     }
     
     public function getUserBoxes($userId) {
