@@ -427,43 +427,44 @@
             registerBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating Account...';
         });
     </script>
-
-    <?php
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
-        $username = Utils::sanitizeInput($_POST['username']);
-        $email = Utils::sanitizeInput($_POST['email']);
-        $fullName = Utils::sanitizeInput($_POST['full_name']);
-        $password = $_POST['password'];
-        $confirmPassword = $_POST['confirm_password'];
-        
-        // Validate inputs
-        if (strlen($username) < 3) {
-            Utils::redirect('register.php', 'Username must be at least 3 characters long.', 'error');
-        }
-        
-        if (!Utils::validateEmail($email)) {
-            Utils::redirect('register.php', 'Please enter a valid email address.', 'error');
-        }
-        
-        if (strlen($password) < 8) {
-            Utils::redirect('register.php', 'Password must be at least 8 characters long.', 'error');
-        }
-        
-        if ($password !== $confirmPassword) {
-            Utils::redirect('register.php', 'Passwords do not match.', 'error');
-        }
-        
-        // Check password strength
-        if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/', $password)) {
-            Utils::redirect('register.php', 'Password must contain at least one uppercase letter, one lowercase letter, and one number.', 'error');
-        }
-        
-        if ($userManager->register($username, $email, $password, $fullName)) {
-            Utils::redirect('login.php', 'Account created successfully! Please sign in.', 'success');
-        } else {
-            Utils::redirect('register.php', 'Username or email already exists. Please choose different ones.', 'error');
-        }
-    }
-    ?>
 </body>
 </html>
+
+<?php
+// Handle registration form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
+    $username = Utils::sanitizeInput($_POST['username']);
+    $email = Utils::sanitizeInput($_POST['email']);
+    $fullName = Utils::sanitizeInput($_POST['full_name']);
+    $password = $_POST['password'];
+    $confirmPassword = $_POST['confirm_password'];
+    
+    // Validate inputs
+    if (strlen($username) < 3) {
+        Utils::redirect('register.php', 'Username must be at least 3 characters long.', 'error');
+    }
+    
+    if (!Utils::validateEmail($email)) {
+        Utils::redirect('register.php', 'Please enter a valid email address.', 'error');
+    }
+    
+    if (strlen($password) < 8) {
+        Utils::redirect('register.php', 'Password must be at least 8 characters long.', 'error');
+    }
+    
+    if ($password !== $confirmPassword) {
+        Utils::redirect('register.php', 'Passwords do not match.', 'error');
+    }
+    
+    // Check password strength
+    if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/', $password)) {
+        Utils::redirect('register.php', 'Password must contain at least one uppercase letter, one lowercase letter, and one number.', 'error');
+    }
+    
+    if ($userManager->register($username, $email, $password, $fullName)) {
+        Utils::redirect('login.php', 'Account created successfully! Please sign in.', 'success');
+    } else {
+        Utils::redirect('register.php', 'Username or email already exists. Please choose different ones.', 'error');
+    }
+}
+?>

@@ -211,18 +211,19 @@
             document.querySelector('.login-container').appendChild(installButton);
         });
     </script>
-
-    <?php
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
-        $username = Utils::sanitizeInput($_POST['username']);
-        $password = $_POST['password'];
-        
-        if ($userManager->authenticate($username, $password)) {
-            Utils::redirect('dashboard.php', 'Welcome back!', 'success');
-        } else {
-            Utils::redirect('login.php', 'Invalid username or password.', 'error');
-        }
-    }
-    ?>
 </body>
 </html>
+
+<?php
+// Handle login form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
+    $username = Utils::sanitizeInput($_POST['username']);
+    $password = $_POST['password'];
+    
+    if ($userManager->authenticate($username, $password)) {
+        Utils::redirect('dashboard.php', 'Welcome back!', 'success');
+    } else {
+        Utils::redirect('login.php', 'Invalid username or password.', 'error');
+    }
+}
+?>
