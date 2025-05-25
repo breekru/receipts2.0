@@ -21,6 +21,14 @@ define('ALLOWED_EXTENSIONS', ['jpg', 'jpeg', 'png', 'gif', 'pdf']);
 // Database configuration
 require_once('/home/blkfarms/secure/db_config_dev.php');
 
+// Add this to your config.php to test database connection
+try {
+    $db = Database::getInstance()->getConnection();
+    echo "Database connected successfully<br>";
+} catch (Exception $e) {
+    echo "Database connection failed: " . $e->getMessage() . "<br>";
+}
+
 class Database {
     private static $instance = null;
     private $connection;

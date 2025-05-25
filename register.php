@@ -1,3 +1,55 @@
+<?php
+// Handle registration form submission FIRST
+require_once 'config.php';
+
+$debug_messages = [];
+$registration_error = '';
+$registration_success = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
+    $debug_messages[] = "Form submitted";
+    
+    $username = Utils::sanitizeInput($_POST['username']);
+    $email = Utils::sanitizeInput($_POST['email']);
+    $fullName = Utils::sanitizeInput($_POST['full_name']);
+    $password = $_POST['password'];
+    $confirmPassword = $_POST['confirm_password'];
+    
+    $debug_messages[] = "Data received: Username: $username, Email: $email";
+    
+    // Validate inputs
+    if (strlen($username) < 3) {
+        $registration_error = 'Username must be at least 3 characters long.';
+    } elseif (!Utils::validateEmail($email)) {
+        $registration_error = 'Please enter a valid email address.';
+    } elseif (strlen($password) < 8) {
+        $registration_error = 'Password must be at least 8 characters long.';
+    } elseif ($password !== $confirmPassword) {
+        $registration_error = 'Passwords do not match.';
+    } elseif (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/', $password)) {
+        $registration_error = 'Password must contain at least one uppercase letter, one lowercase letter, and one number.';
+    } else {
+        // Try to register
+        $debug_messages[] = "Validation passed, attempting registration";
+        
+        try {
+            if ($userManager->register($username, $email, $password, $fullName)) {
+                $registration_success = 'Account created successfully! Please sign in.';
+                $debug_messages[] = "Registration successful";
+            } else {
+                $registration_error = 'Username or email already exists. Please choose different ones.';
+                $debug_messages[] = "Registration failed - user exists";
+            }
+        } catch (Exception $e) {
+            $registration_error = 'Registration failed: ' . $e->getMessage();
+            $debug_messages[] = "Exception: " . $e->getMessage();
+        }
+    }
+}
+
+// Enable debug mode - remove this in production
+$show_debug = true;
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -145,6 +197,15 @@
             font-size: 0.875rem;
             line-height: 1.4;
         }
+        
+        .debug-info {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+        }
     </style>
 </head>
 <body>
@@ -156,17 +217,291 @@
                     <h2 class="text-center mb-4 fw-bold">Create Account</h2>
                     <p class="text-center text-muted mb-4">Join Receipt Logger today</p>
                     
-                    <?php
-                    require_once 'config.php';
+                    <?php if ($show_debug && !empty($debug_messages)): ?>
+                    <div class="debug-info">
+                        <strong>Debug Info:</strong><br>
+                        <?php foreach ($debug_messages as $msg): ?>
+                            • <?php echo htmlspecialchars($msg); ?><br>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
                     
-                    $flash = Utils::getFlashMessage();
-                    if ($flash['message']):
-                    ?>
-                    <div class="alert alert-<?php echo $flash['type'] === 'error' ? 'danger' : 'success'; ?> alert-dismissible fade show" role="alert">
-                        <?php echo htmlspecialchars($flash['message']); ?>
+                    <?php if ($registration_error): ?>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <?php echo htmlspecialchars($registration_error); ?>
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                     <?php endif; ?>
+                    
+                    <?php if ($registration_success): ?>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <?php echo htmlspecialchars($registration_success); ?>
+                        <a href="login.php" class="btn btn-success btn-sm ms-2">Sign In Now</a>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <form method="POST" action="register.php" id="registerForm">
+                        <div class="form-floating mb-3">
+                            <input type="text" class="form-control" id="fullName" name="full_name" placeholder="Full Name" required value="<?php echo isset($_POST['full_name']) ? htmlspecialchars($_POST['full_name']) : ''; ?>">
+                            <label for="fullName"><i class="fas fa-user me-2"></i>Full Name</label>
+                        </div>
+                        
+                        <div class="form-floating mb-3">
+                            <input type="text" class="form-control" id="username" name="username" placeholder="Username" required value="<?php echo isset($_POST['username']) ? htmlspecialchars($_POST['username']) : ''; ?>">
+                            <label for="username"><i class="fas fa-at me-2"></i>Username</label>
+                            <div class="form-text">Choose a unique username (3+ characters)</div>
+                        </div>
+                        
+                        <div class="form-floating mb-3">
+                            <input type="email" class="form-control" id="email" name="email" placeholder="Email" required value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>">
+                            <label for="email"><i class="fas fa-envelope me-2"></i>Email Address</label>
+                        </div>
+                        
+                        <div class="form-floating mb-3">
+                            <input type="password" class="form-control" id="password" name="password" placeholder="Password" required>
+                            <label for="password"><i class="fas fa-lock me-2"></i>Password</label>
+                            <div class="password-strength">
+                                <div class="password-strength-bar" id="strengthBar"></div>
+                            </div>
+                            <div class="password-requirements" id="passwordRequirements">
+                                <div class="requirement" id="lengthReq">
+                                    <i class="fas fa-times"></i>
+                                    <span>At least 8 characters</span>
+                                </div>
+                                <div class="requirement" id="uppercaseReq">
+                                    <i class="fas fa-times"></i>
+                                    <span>One uppercase letter</span>
+                                </div>
+                                <div class="requirement" id="lowercaseReq">
+                                    <i class="fas fa-times"></i>
+                                    <span>One lowercase letter</span>
+                                </div>
+                                <div class="requirement" id="numberReq">
+                                    <i class="fas fa-times"></i>
+                                    <span>One number</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-floating mb-4">
+                            <input type="password" class="form-control" id="confirmPassword" name="confirm_password" placeholder="Confirm Password" required>
+                            <label for="confirmPassword"><i class="fas fa-lock me-2"></i>Confirm Password</label>
+                            <div class="form-text" id="passwordMatch"></div>
+                        </div>
+                        
+                        <div class="form-check mb-4">
+                            <input class="form-check-input terms-checkbox" type="checkbox" id="agreeTerms" required>
+                            <label class="form-check-label terms-text" for="agreeTerms">
+                                I agree to the <a href="#" data-bs-toggle="modal" data-bs-target="#termsModal">Terms of Service</a> 
+                                and <a href="#" data-bs-toggle="modal" data-bs-target="#privacyModal">Privacy Policy</a>
+                            </label>
+                        </div>
+                        
+                        <div class="d-grid mb-3">
+                            <button type="submit" name="register" class="btn btn-primary btn-lg" id="registerBtn">
+                                <i class="fas fa-user-plus me-2"></i>Create Account
+                            </button>
+                        </div>
+                        
+                        <div class="divider">
+                            <span>or</span>
+                        </div>
+                        
+                        <div class="text-center">
+                            <p class="mb-0">Already have an account?</p>
+                            <a href="login.php" class="btn btn-outline-primary">
+                                <i class="fas fa-sign-in-alt me-2"></i>Sign In
+                            </a>
+                        </div>
+                    </form>
+                    
+                    <div class="text-center mt-4">
+                        <small class="text-muted">
+                            <i class="fas fa-shield-alt me-1"></i>
+                            Your data is protected with enterprise-grade encryption
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Terms Modal -->
+    <div class="modal fade" id="termsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Terms of Service</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <h6>1. Acceptance of Terms</h6>
+                    <p>By using Receipt Logger, you agree to these terms and conditions.</p>
+                    
+                    <h6>2. Service Description</h6>
+                    <p>Receipt Logger is a digital receipt management system that allows users to upload, organize, and track receipts for personal or business use.</p>
+                    
+                    <h6>3. User Responsibilities</h6>
+                    <ul>
+                        <li>Maintain the security of your account credentials</li>
+                        <li>Use the service only for lawful purposes</li>
+                        <li>Ensure uploaded content doesn't violate copyright or privacy laws</li>
+                    </ul>
+                    
+                    <h6>4. Data Usage</h6>
+                    <p>We collect and process your data as outlined in our Privacy Policy. We do not sell or share your personal information with third parties.</p>
+                    
+                    <h6>5. Service Availability</h6>
+                    <p>We strive to maintain 99.9% uptime but cannot guarantee uninterrupted service.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Privacy Modal -->
+    <div class="modal fade" id="privacyModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Privacy Policy</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <h6>Information We Collect</h6>
+                    <ul>
+                        <li>Account information (username, email, name)</li>
+                        <li>Receipt images and associated metadata</li>
+                        <li>Usage analytics and system logs</li>
+                    </ul>
+                    
+                    <h6>How We Use Your Information</h6>
+                    <ul>
+                        <li>Provide and improve our services</li>
+                        <li>Communicate important updates</li>
+                        <li>Ensure security and prevent fraud</li>
+                    </ul>
+                    
+                    <h6>Data Security</h6>
+                    <p>We use industry-standard encryption and security measures to protect your data. All receipt images are stored securely and are only accessible by authorized users.</p>
+                    
+                    <h6>Your Rights</h6>
+                    <p>You have the right to access, modify, or delete your personal data at any time through your account settings.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const passwordInput = document.getElementById('password');
+        const confirmPasswordInput = document.getElementById('confirmPassword');
+        const strengthBar = document.getElementById('strengthBar');
+        const registerBtn = document.getElementById('registerBtn');
+        const agreeTerms = document.getElementById('agreeTerms');
+        const passwordMatch = document.getElementById('passwordMatch');
+        
+        // Password requirements elements
+        const lengthReq = document.getElementById('lengthReq');
+        const uppercaseReq = document.getElementById('uppercaseReq');
+        const lowercaseReq = document.getElementById('lowercaseReq');
+        const numberReq = document.getElementById('numberReq');
+        
+        // Password strength checking
+        passwordInput.addEventListener('input', function() {
+            const password = this.value;
+            let score = 0;
+            
+            // Check requirements
+            const hasLength = password.length >= 8;
+            const hasUppercase = /[A-Z]/.test(password);
+            const hasLowercase = /[a-z]/.test(password);
+            const hasNumber = /\d/.test(password);
+            
+            // Update requirement indicators
+            updateRequirement(lengthReq, hasLength);
+            updateRequirement(uppercaseReq, hasUppercase);
+            updateRequirement(lowercaseReq, hasLowercase);
+            updateRequirement(numberReq, hasNumber);
+            
+            // Calculate strength score
+            if (hasLength) score++;
+            if (hasUppercase) score++;
+            if (hasLowercase) score++;
+            if (hasNumber) score++;
+            
+            // Update strength bar
+            strengthBar.className = 'password-strength-bar';
+            if (score === 1) strengthBar.classList.add('strength-weak');
+            else if (score === 2) strengthBar.classList.add('strength-fair');
+            else if (score === 3) strengthBar.classList.add('strength-good');
+            else if (score === 4) strengthBar.classList.add('strength-strong');
+            
+            checkFormValidity();
+        });
+        
+        // Confirm password checking
+        confirmPasswordInput.addEventListener('input', function() {
+            const password = passwordInput.value;
+            const confirmPassword = this.value;
+            
+            if (confirmPassword === '') {
+                passwordMatch.textContent = '';
+                passwordMatch.className = 'form-text';
+            } else if (password === confirmPassword) {
+                passwordMatch.textContent = 'Passwords match';
+                passwordMatch.className = 'form-text text-success';
+            } else {
+                passwordMatch.textContent = 'Passwords do not match';
+                passwordMatch.className = 'form-text text-danger';
+            }
+            
+            checkFormValidity();
+        });
+        
+        // Terms agreement
+        agreeTerms.addEventListener('change', checkFormValidity);
+        
+        function updateRequirement(element, met) {
+            const icon = element.querySelector('i');
+            if (met) {
+                element.classList.add('met');
+                icon.className = 'fas fa-check';
+            } else {
+                element.classList.remove('met');
+                icon.className = 'fas fa-times';
+            }
+        }
+        
+        function checkFormValidity() {
+            const password = passwordInput.value;
+            const confirmPassword = confirmPasswordInput.value;
+            const hasLength = password.length >= 8;
+            const hasUppercase = /[A-Z]/.test(password);
+            const hasLowercase = /[a-z]/.test(password);
+            const hasNumber = /\d/.test(password);
+            const passwordsMatch = password === confirmPassword && confirmPassword !== '';
+            const termsAgreed = agreeTerms.checked;
+            
+            const isValid = hasLength && hasUppercase && hasLowercase && hasNumber && passwordsMatch && termsAgreed;
+            
+            registerBtn.disabled = !isValid;
+        }
+        
+        // Form submission
+        document.getElementById('registerForm').addEventListener('submit', function(e) {
+            registerBtn.disabled = true;
+            registerBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating Account...';
+        });
+    </script>
+</body>
+</html>
                     
                     <form method="POST" action="register.php" id="registerForm">
                         <div class="form-floating mb-3">
