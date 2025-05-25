@@ -32,6 +32,8 @@ try {
         $hasEmail = false;
         $hasFullName = false;
         $hasIsActive = false;
+        $hasPasswordHash = false;
+        $hasPassword = false;
         
         echo "Current columns:<br>";
         foreach ($currentColumns as $column) {
@@ -39,6 +41,8 @@ try {
             if ($column['Field'] === 'email') $hasEmail = true;
             if ($column['Field'] === 'full_name') $hasFullName = true;
             if ($column['Field'] === 'is_active') $hasIsActive = true;
+            if ($column['Field'] === 'password_hash') $hasPasswordHash = true;
+            if ($column['Field'] === 'password') $hasPassword = true;
         }
         
         // Add missing columns
@@ -47,6 +51,15 @@ try {
         if (!$hasEmail) {
             $pdo->exec("ALTER TABLE users ADD COLUMN email VARCHAR(100) UNIQUE AFTER username");
             echo "✓ Added email column<br>";
+        }
+        
+        // Handle password column rename
+        if ($hasPassword && !$hasPasswordHash) {
+            $pdo->exec("ALTER TABLE users CHANGE COLUMN password password_hash VARCHAR(255) NOT NULL");
+            echo "✓ Renamed password column to password_hash<br>";
+        } elseif (!$hasPasswordHash && !$hasPassword) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN password_hash VARCHAR(255) NOT NULL AFTER email");
+            echo "✓ Added password_hash column<br>";
         }
         
         if (!$hasFullName) {
