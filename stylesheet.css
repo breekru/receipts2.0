@@ -1,0 +1,340 @@
+/* General Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Body and Background */
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f9f9f9;
+    color: #333;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+    margin: 20px 0 10px;
+    color: #222;
+}
+
+/* Links */
+a {
+    color: #007BFF;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    color: #0056b3;
+    text-decoration: underline;
+}
+
+/* Tables */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    background: #fff;
+}
+
+th, td {
+    border: 1px solid #ddd;
+    padding: 12px;
+    text-align: center;
+    height: 50px; /* Set row height */
+    vertical-align: middle; /* Align content vertically */
+    overflow: hidden; /* Prevent overflow */
+}
+
+th {
+    background-color: #f4f4f4;
+    font-weight: bold;
+}
+
+tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+tr:hover {
+    background-color: #f1f1f1;
+}
+
+/* Buttons */
+button, .button {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+button:hover, .button:hover {
+    background-color: #45a049;
+    transform: scale(1.05);
+}
+
+button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+/* Thumbnails */
+.thumbnail {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 5px;
+    max-height: 150px; /* Strictly limit thumbnail height */
+    width: auto; /* Maintain aspect ratio */
+    overflow: hidden; /* Prevent content overflow */
+    /*object-fit: cover; /* Ensures image fits within the bounds */
+    cursor: pointer;
+    transition: box-shadow 0.3s ease;
+}
+
+.thumbnail:hover {
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+/* Modals */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.8);
+}
+
+.modal-content {
+    margin: auto;
+    display: block;
+    position: relative;
+    top: 50%;
+    transform: translateY(-50%);
+    max-width: 90%;
+    max-height: 90%;
+}
+
+.close {
+    position: absolute;
+    top: 10px;
+    right: 25px;
+    color: #fff;
+    font-size: 40px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+/* Layout Utilities */
+.center {
+    text-align: center;
+}
+
+.text-right {
+    text-align: right;
+}
+
+.text-left {
+    text-align: left;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 15px;
+}
+
+/* Responsive Images */
+img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Forms */
+input, textarea, select {
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 1rem;
+    color: #333;
+}
+
+input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: #4CAF50;
+    box-shadow: 0 0 5px rgba(76, 175, 80, 0.5);
+}
+
+/* Header and Footer */
+header, footer {
+    background-color: #333;
+    color: white;
+    padding: 20px;
+    text-align: center;
+}
+
+/* Navigation Bar */
+.navbar {
+    background-color: #4CAF50;
+    overflow: hidden;
+}
+
+.navbar a {
+    float: left;
+    display: block;
+    color: white;
+    text-align: center;
+    padding: 14px 20px;
+    text-decoration: none;
+}
+
+.navbar a:hover {
+    background-color: #45a049;
+    color: white;
+}
+
+/* Right-Aligned Button */
+.right-aligned-button {
+    position: absolute;
+    right: 20px;
+    top: 20px;
+}
+
+/* Left-Aligned Button */
+.left-aligned {
+    position: absolute;
+    left: 20px;
+    top: 20px;
+}
+
+/* Footer Links */
+footer a {
+    color: #aaa;
+}
+
+footer a:hover {
+    color: white;
+    text-decoration: underline;
+}
+
+/* Mobile Responsiveness */
+@media screen and (max-width: 768px) {
+    .navbar a {
+        float: none;
+        width: 100%;
+    }
+    .container {
+        padding: 10px;
+    }
+}
+
+/* Compact Form */
+.compact-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px; /* Space between items */
+    align-items: center;
+    justify-content: space-between;
+}
+
+.compact-form .form-group {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 15px;
+    flex: 1; /* Allow equal distribution */
+    min-width: 120px; /* Minimum width for small screens */
+}
+
+.compact-form .form-group label {
+    margin-bottom: 5px;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.compact-form .form-group input,
+.compact-form .form-group select,
+.compact-form .form-group textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 0.9rem;
+}
+
+.compact-form .form-group input:focus,
+.compact-form .form-group select:focus,
+.compact-form .form-group textarea:focus {
+    border-color: #4CAF50;
+    box-shadow: 0 0 5px rgba(76, 175, 80, 0.5);
+    outline: none;
+}
+
+.compact-form .form-group button {
+    margin-top: 5px;
+}
+
+/* Compact Form Submit Button */
+.compact-form .form-submit {
+    flex: 0 0 auto;
+    align-self: flex-end;
+}
+
+.modal-content {
+    cursor: grab;
+    transition: transform 0.3s ease-in-out;
+}
+.modal-content:active {
+    cursor: grabbing;
+}
+
+/* Logo Class */
+.logo {
+    max-width: 100%; /* Ensure the logo doesn't exceed its container */
+    height: auto; /* Maintain the aspect ratio */
+    display: block; /* Remove extra space below the image */
+    margin: 0; /* Remove any extra margin */
+    padding: 10px; /* Add padding around the logo if needed */
+}
+
+/* Header Container */
+.header-container {
+    display: flex;
+    justify-content: flex-start; /* Align logo to the left */
+    align-items: center; /* Vertically center the logo */
+    padding: 10px; /* Space around the container */
+}
+
+.header-info {
+    flex-grow: 1; /* Allows this section to take up available space */
+    text-align: center; /* Center the content if needed */
+    padding: 0 0px; /* Optional padding to adjust spacing */
+}
+
+/* Right-Aligned Section */
+.header-right {
+    display: flex;
+    justify-content: flex-end; /* Align content to the right */
+}
+
+/* Mobile Responsiveness */
+@media screen and (max-width: 768px) {
+    .header-container {
+        padding: 5px; /* Adjust padding for smaller screens */
+    }
+    .logo {
+        max-width: 80%; /* Reduce logo size on smaller screens */
+    }
+}
+
