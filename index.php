@@ -1,31 +1,20 @@
+<?php
+// index.php - LogIt Landing Page
+require_once 'config.php';
+
+// If user is already logged in, redirect to dashboard
+if (Utils::isLoggedIn()) {
+    Utils::redirect('dashboard.php');
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Receipt Logger - Modern Receipt Management</title>
-    <link rel="icon" href="icons/ReceiptLogger.png" type="image/png">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#0d6efd">
-    <meta name="description" content="Modern receipt management system for businesses and individuals. Upload, organize, and track your receipts with ease.">
+    <?php renderHeader('Welcome to LogIt', 'Modern receipt management and expense tracking made simple'); ?>
     <style>
-        :root {
-            --primary-color: #0d6efd;
-            --secondary-color: #6610f2;
-            --success-color: #28a745;
-            --gradient: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            overflow-x: hidden;
-        }
-        
-        /* Hero Section */
+        /* Landing page specific styles */
         .hero-section {
-            background: var(--gradient);
+            background: var(--primary-gradient);
             color: white;
             min-height: 100vh;
             display: flex;
@@ -54,14 +43,9 @@
             width: 120px;
             height: 120px;
             border-radius: 50%;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            box-shadow: var(--shadow-lg);
             margin-bottom: 2rem;
             animation: float 3s ease-in-out infinite;
-        }
-        
-        @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
         }
         
         .hero-title {
@@ -83,29 +67,27 @@
             padding: 1rem 2rem;
             font-size: 1.1rem;
             font-weight: 600;
-            border-radius: 50px;
-            transition: all 0.3s ease;
+            border-radius: var(--radius-pill);
+            transition: var(--transition-normal);
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            min-width: 180px;
         }
         
         .btn-hero-primary {
-            background: rgba(255, 255, 255, 0.2);
-            border: 2px solid white;
+            background: var(--warm-gradient);
+            border: 2px solid transparent;
             color: white;
-            backdrop-filter: blur(10px);
         }
         
         .btn-hero-primary:hover {
-            background: white;
-            color: var(--primary-color);
             transform: translateY(-3px);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 10px 25px rgba(253, 126, 20, 0.4);
         }
         
         .btn-hero-secondary {
             background: transparent;
-            border: 2px solid rgba(255, 255, 255, 0.5);
+            border: 2px solid rgba(255, 255, 255, 0.8);
             color: white;
         }
         
@@ -116,18 +98,17 @@
             transform: translateY(-3px);
         }
         
-        /* Features Section */
         .features-section {
             padding: 6rem 0;
-            background: #f8f9fa;
+            background: var(--light-color);
         }
         
         .feature-card {
             background: white;
-            border-radius: 20px;
+            border-radius: var(--radius-xl);
             padding: 2.5rem;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
-            transition: all 0.3s ease;
+            box-shadow: var(--shadow-md);
+            transition: var(--transition-normal);
             border: none;
             height: 100%;
             text-align: center;
@@ -135,14 +116,14 @@
         
         .feature-card:hover {
             transform: translateY(-10px);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+            box-shadow: var(--shadow-lg);
         }
         
         .feature-icon {
             width: 80px;
             height: 80px;
             margin: 0 auto 1.5rem;
-            background: var(--gradient);
+            background: var(--accent-gradient);
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -155,17 +136,11 @@
             font-size: 1.5rem;
             font-weight: 600;
             margin-bottom: 1rem;
-            color: #333;
+            color: var(--dark-color);
         }
         
-        .feature-description {
-            color: #666;
-            line-height: 1.6;
-        }
-        
-        /* Stats Section */
         .stats-section {
-            background: var(--gradient);
+            background: var(--accent-gradient);
             color: white;
             padding: 4rem 0;
         }
@@ -189,7 +164,6 @@
             letter-spacing: 1px;
         }
         
-        /* How It Works Section */
         .how-it-works {
             padding: 6rem 0;
             background: white;
@@ -198,13 +172,12 @@
         .step-card {
             text-align: center;
             padding: 2rem 1rem;
-            position: relative;
         }
         
         .step-number {
             width: 60px;
             height: 60px;
-            background: var(--gradient);
+            background: var(--accent-gradient);
             color: white;
             border-radius: 50%;
             display: flex;
@@ -213,24 +186,11 @@
             font-size: 1.5rem;
             font-weight: 700;
             margin: 0 auto 1.5rem;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            box-shadow: var(--shadow-md);
         }
         
-        .step-title {
-            font-size: 1.3rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            color: #333;
-        }
-        
-        .step-description {
-            color: #666;
-            line-height: 1.6;
-        }
-        
-        /* CTA Section */
         .cta-section {
-            background: #f8f9fa;
+            background: var(--light-color);
             padding: 5rem 0;
             text-align: center;
         }
@@ -239,18 +199,11 @@
             font-size: 2.5rem;
             font-weight: 700;
             margin-bottom: 1rem;
-            color: #333;
+            color: var(--dark-color);
         }
         
-        .cta-subtitle {
-            font-size: 1.2rem;
-            color: #666;
-            margin-bottom: 2.5rem;
-        }
-        
-        /* Footer */
         .footer {
-            background: #333;
+            background: var(--dark-color);
             color: white;
             padding: 3rem 0 1rem;
         }
@@ -262,30 +215,42 @@
             margin-bottom: 1rem;
         }
         
-        .footer-links a {
-            color: #ccc;
-            text-decoration: none;
-            margin-bottom: 0.5rem;
-            display: block;
-            transition: color 0.3s ease;
-        }
-        
-        .footer-links a:hover {
-            color: white;
-        }
-        
         .social-links a {
             color: #ccc;
             font-size: 1.5rem;
             margin: 0 1rem;
-            transition: color 0.3s ease;
+            transition: var(--transition-normal);
         }
         
         .social-links a:hover {
-            color: var(--primary-color);
+            color: var(--accent-color);
         }
         
-        /* Responsive Design */
+        .install-banner {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: var(--accent-gradient);
+            color: white;
+            padding: 1rem;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            display: none;
+            z-index: 1000;
+        }
+        
+        .install-banner.show {
+            display: block;
+            animation: slideUp 0.3s ease;
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        
+        /* Responsive adjustments */
         @media (max-width: 768px) {
             .hero-title {
                 font-size: 2.5rem;
@@ -310,7 +275,6 @@
             }
         }
         
-        /* Scroll animations */
         .fade-in {
             opacity: 0;
             transform: translateY(30px);
@@ -321,42 +285,9 @@
             opacity: 1;
             transform: translateY(0);
         }
-        
-        /* PWA Install Banner */
-        .install-banner {
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            right: 20px;
-            background: var(--gradient);
-            color: white;
-            padding: 1rem;
-            border-radius: 15px;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
-            display: none;
-            z-index: 1000;
-        }
-        
-        .install-banner.show {
-            display: block;
-            animation: slideUp 0.3s ease;
-        }
-        
-        @keyframes slideUp {
-            from { transform: translateY(100%); }
-            to { transform: translateY(0); }
-        }
     </style>
 </head>
 <body>
-    <?php
-    require_once 'config.php';
-    
-    // If user is already logged in, redirect to dashboard
-    if (Utils::isLoggedIn()) {
-        Utils::redirect('dashboard.php');
-    }
-    ?>
 
     <!-- Hero Section -->
     <section class="hero-section">
@@ -364,10 +295,10 @@
             <div class="row align-items-center">
                 <div class="col-lg-6">
                     <div class="hero-content text-center text-lg-start">
-                        <img src="icons/ReceiptLogger.png" alt="Receipt Logger" class="hero-logo">
-                        <h1 class="hero-title">Receipt Logger</h1>
+                        <img src="icons/LogIt.png" alt="LogIt" class="hero-logo">
+                        <h1 class="hero-title">LogIt</h1>
                         <p class="hero-subtitle">
-                            The modern way to manage your receipts. Upload, organize, and track your expenses with our powerful, mobile-friendly platform.
+                            The smart way to manage your receipts. Upload, organize, and track your expenses with our powerful, mobile-friendly platform designed for modern businesses.
                         </p>
                         <div class="hero-buttons">
                             <a href="register.php" class="btn btn-hero-primary">
@@ -393,8 +324,8 @@
         <div class="container">
             <div class="row text-center mb-5">
                 <div class="col-lg-8 mx-auto">
-                    <h2 class="display-4 fw-bold mb-4">Why Choose Receipt Logger?</h2>
-                    <p class="lead text-muted">Streamline your expense management with our comprehensive receipt tracking solution.</p>
+                    <h2 class="display-4 fw-bold mb-4">Why Choose LogIt?</h2>
+                    <p class="lead text-muted">Streamline your expense management with our comprehensive receipt tracking solution designed for the modern workplace.</p>
                 </div>
             </div>
             
@@ -406,7 +337,7 @@
                         </div>
                         <h3 class="feature-title">Mobile First</h3>
                         <p class="feature-description">
-                            Snap photos of receipts instantly with your phone. Our mobile-optimized interface makes uploading receipts quick and effortless.
+                            Snap photos of receipts instantly with your phone. Our mobile-optimized interface makes uploading receipts quick and effortless wherever you are.
                         </p>
                     </div>
                 </div>
@@ -418,7 +349,7 @@
                         </div>
                         <h3 class="feature-title">Team Collaboration</h3>
                         <p class="feature-description">
-                            Share receipt boxes with team members, clients, or family. Control access levels and collaborate seamlessly.
+                            Share receipt boxes with team members, clients, or family. Control access levels and collaborate seamlessly on expense tracking.
                         </p>
                     </div>
                 </div>
@@ -430,7 +361,7 @@
                         </div>
                         <h3 class="feature-title">Smart Organization</h3>
                         <p class="feature-description">
-                            Advanced filtering and search capabilities. Organize by date, category, vendor, or amount to find receipts instantly.
+                            Advanced filtering and search capabilities. Organize by date, category, vendor, or amount to find receipts instantly when you need them.
                         </p>
                     </div>
                 </div>
@@ -442,7 +373,7 @@
                         </div>
                         <h3 class="feature-title">Secure & Private</h3>
                         <p class="feature-description">
-                            Your receipts are encrypted and stored securely. We never share your data with third parties.
+                            Your receipts are encrypted and stored securely. We never share your data with third parties. Your privacy is our priority.
                         </p>
                     </div>
                 </div>
@@ -454,7 +385,7 @@
                         </div>
                         <h3 class="feature-title">Expense Tracking</h3>
                         <p class="feature-description">
-                            Track spending patterns with built-in analytics. Mark receipts as logged for easy tax preparation.
+                            Track spending patterns with built-in analytics. Mark receipts as logged for easy tax preparation and financial reporting.
                         </p>
                     </div>
                 </div>
@@ -466,7 +397,7 @@
                         </div>
                         <h3 class="feature-title">PWA Ready</h3>
                         <p class="feature-description">
-                            Install as a Progressive Web App on any device. Works offline and provides a native app experience.
+                            Install as a Progressive Web App on any device. Works offline and provides a native app experience across all platforms.
                         </p>
                     </div>
                 </div>
@@ -480,19 +411,19 @@
             <div class="row">
                 <div class="col-lg-3 col-md-6">
                     <div class="stat-item fade-in">
-                        <div class="stat-number" data-count="10000">0</div>
+                        <div class="stat-number" data-count="25000">0</div>
                         <div class="stat-label">Receipts Processed</div>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6">
                     <div class="stat-item fade-in">
-                        <div class="stat-number" data-count="500">0</div>
+                        <div class="stat-number" data-count="1200">0</div>
                         <div class="stat-label">Active Users</div>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6">
                     <div class="stat-item fade-in">
-                        <div class="stat-number" data-count="99">0</div>
+                        <div class="stat-number" data-count="99.9">0</div>
                         <div class="stat-label">Uptime %</div>
                     </div>
                 </div>
@@ -511,8 +442,8 @@
         <div class="container">
             <div class="row text-center mb-5">
                 <div class="col-lg-8 mx-auto">
-                    <h2 class="display-4 fw-bold mb-4">How It Works</h2>
-                    <p class="lead text-muted">Get started with Receipt Logger in just three simple steps.</p>
+                    <h2 class="display-4 fw-bold mb-4">How LogIt Works</h2>
+                    <p class="lead text-muted">Get started with LogIt in just three simple steps and transform your receipt management.</p>
                 </div>
             </div>
             
@@ -522,7 +453,7 @@
                         <div class="step-number">1</div>
                         <h3 class="step-title">Create Account</h3>
                         <p class="step-description">
-                            Sign up for free and create your first receipt box. Invite team members to collaborate.
+                            Sign up for free and create your first receipt box. Invite team members to collaborate and start organizing immediately.
                         </p>
                     </div>
                 </div>
@@ -532,7 +463,7 @@
                         <div class="step-number">2</div>
                         <h3 class="step-title">Upload Receipts</h3>
                         <p class="step-description">
-                            Use your phone to snap photos of receipts or upload existing files. Add details like amount and category.
+                            Use your phone to snap photos of receipts or upload existing files. Add details like amount, category, and vendor information.
                         </p>
                     </div>
                 </div>
@@ -542,7 +473,7 @@
                         <div class="step-number">3</div>
                         <h3 class="step-title">Organize & Track</h3>
                         <p class="step-description">
-                            View, filter, and organize your receipts. Mark them as logged for tax purposes and export when needed.
+                            View, filter, and organize your receipts. Mark them as logged for tax purposes and export reports when needed.
                         </p>
                     </div>
                 </div>
@@ -556,11 +487,11 @@
             <div class="row">
                 <div class="col-lg-8 mx-auto">
                     <h2 class="cta-title">Ready to Get Organized?</h2>
-                    <p class="cta-subtitle">
-                        Join thousands of users who trust Receipt Logger for their expense management needs.
+                    <p class="cta-subtitle lead">
+                        Join thousands of users who trust LogIt for their expense management needs. Start your free account today.
                     </p>
-                    <div class="hero-buttons">
-                        <a href="register.php" class="btn btn-primary btn-lg">
+                    <div class="hero-buttons mt-4">
+                        <a href="register.php" class="btn btn-accent btn-lg">
                             <i class="fas fa-rocket me-2"></i>Start Free Today
                         </a>
                         <a href="#features" class="btn btn-outline-primary btn-lg">
@@ -577,48 +508,48 @@
         <div class="container">
             <div class="row">
                 <div class="col-lg-4 mb-4">
-                    <img src="icons/ReceiptLogger.png" alt="Receipt Logger" class="footer-logo">
-                    <h5 class="fw-bold">Receipt Logger</h5>
-                    <p class="text-muted">Modern receipt management made simple. Organize, track, and collaborate on your expenses with ease.</p>
+                    <img src="icons/LogIt.png" alt="LogIt" class="footer-logo">
+                    <h5 class="fw-bold">LogIt</h5>
+                    <p class="text-muted">Modern receipt management made simple. Organize, track, and collaborate on your expenses with ease and confidence.</p>
                 </div>
                 
                 <div class="col-lg-2 col-md-6 mb-4">
                     <h6 class="fw-bold mb-3">Product</h6>
-                    <div class="footer-links">
-                        <a href="#features">Features</a>
-                        <a href="#pricing">Pricing</a>
-                        <a href="#security">Security</a>
-                        <a href="#api">API</a>
+                    <div class="d-flex flex-column">
+                        <a href="#features" class="text-decoration-none text-muted mb-2">Features</a>
+                        <a href="#pricing" class="text-decoration-none text-muted mb-2">Pricing</a>
+                        <a href="#security" class="text-decoration-none text-muted mb-2">Security</a>
+                        <a href="#api" class="text-decoration-none text-muted mb-2">API</a>
                     </div>
                 </div>
                 
                 <div class="col-lg-2 col-md-6 mb-4">
                     <h6 class="fw-bold mb-3">Company</h6>
-                    <div class="footer-links">
-                        <a href="#about">About</a>
-                        <a href="#contact">Contact</a>
-                        <a href="#careers">Careers</a>
-                        <a href="#blog">Blog</a>
+                    <div class="d-flex flex-column">
+                        <a href="#about" class="text-decoration-none text-muted mb-2">About</a>
+                        <a href="#contact" class="text-decoration-none text-muted mb-2">Contact</a>
+                        <a href="#careers" class="text-decoration-none text-muted mb-2">Careers</a>
+                        <a href="#blog" class="text-decoration-none text-muted mb-2">Blog</a>
                     </div>
                 </div>
                 
                 <div class="col-lg-2 col-md-6 mb-4">
                     <h6 class="fw-bold mb-3">Support</h6>
-                    <div class="footer-links">
-                        <a href="#help">Help Center</a>
-                        <a href="#docs">Documentation</a>
-                        <a href="#status">Status</a>
-                        <a href="#feedback">Feedback</a>
+                    <div class="d-flex flex-column">
+                        <a href="#help" class="text-decoration-none text-muted mb-2">Help Center</a>
+                        <a href="#docs" class="text-decoration-none text-muted mb-2">Documentation</a>
+                        <a href="#status" class="text-decoration-none text-muted mb-2">Status</a>
+                        <a href="#feedback" class="text-decoration-none text-muted mb-2">Feedback</a>
                     </div>
                 </div>
                 
                 <div class="col-lg-2 col-md-6 mb-4">
                     <h6 class="fw-bold mb-3">Legal</h6>
-                    <div class="footer-links">
-                        <a href="#privacy">Privacy</a>
-                        <a href="#terms">Terms</a>
-                        <a href="#cookies">Cookies</a>
-                        <a href="#compliance">Compliance</a>
+                    <div class="d-flex flex-column">
+                        <a href="#privacy" class="text-decoration-none text-muted mb-2">Privacy</a>
+                        <a href="#terms" class="text-decoration-none text-muted mb-2">Terms</a>
+                        <a href="#cookies" class="text-decoration-none text-muted mb-2">Cookies</a>
+                        <a href="#compliance" class="text-decoration-none text-muted mb-2">Compliance</a>
                     </div>
                 </div>
             </div>
@@ -627,14 +558,14 @@
             
             <div class="row align-items-center">
                 <div class="col-md-6">
-                    <p class="text-muted mb-0">&copy; 2024 Receipt Logger. All rights reserved.</p>
+                    <p class="text-muted mb-0">&copy; 2024 LogIt. All rights reserved. Built with ❤️ for better expense management.</p>
                 </div>
                 <div class="col-md-6 text-md-end">
                     <div class="social-links">
-                        <a href="#"><i class="fab fa-twitter"></i></a>
-                        <a href="#"><i class="fab fa-facebook"></i></a>
-                        <a href="#"><i class="fab fa-linkedin"></i></a>
-                        <a href="#"><i class="fab fa-github"></i></a>
+                        <a href="#" aria-label="Twitter"><i class="fab fa-twitter"></i></a>
+                        <a href="#" aria-label="Facebook"><i class="fab fa-facebook"></i></a>
+                        <a href="#" aria-label="LinkedIn"><i class="fab fa-linkedin"></i></a>
+                        <a href="#" aria-label="GitHub"><i class="fab fa-github"></i></a>
                     </div>
                 </div>
             </div>
@@ -645,7 +576,7 @@
     <div id="installBanner" class="install-banner">
         <div class="d-flex justify-content-between align-items-center">
             <div>
-                <h6 class="mb-1">Install Receipt Logger</h6>
+                <h6 class="mb-1">Install LogIt</h6>
                 <small>Get the full app experience on your device</small>
             </div>
             <div>
@@ -655,7 +586,7 @@
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <?php renderScripts(); ?>
     <script>
         // Smooth scrolling for anchor links
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
@@ -691,17 +622,17 @@
 
         // Animated counters
         function animateCounter(element) {
-            const target = parseInt(element.getAttribute('data-count'));
+            const target = parseFloat(element.getAttribute('data-count'));
             const increment = target / 100;
             let current = 0;
             
             const timer = setInterval(() => {
                 current += increment;
                 if (current >= target) {
-                    element.textContent = target;
+                    element.textContent = target % 1 === 0 ? target : target.toFixed(1);
                     clearInterval(timer);
                 } else {
-                    element.textContent = Math.ceil(current);
+                    element.textContent = current % 1 === 0 ? Math.ceil(current) : current.toFixed(1);
                 }
             }, 20);
         }
@@ -766,10 +697,37 @@
         window.addEventListener('scroll', () => {
             const scrolled = window.pageYOffset;
             const parallax = document.querySelector('.hero-section');
-            const speed = scrolled * 0.5;
+            const speed = scrolled * 0.3;
             
-            if (parallax) {
+            if (parallax && scrolled < window.innerHeight) {
                 parallax.style.transform = `translateY(${speed}px)`;
+            }
+        });
+
+        // Add some interactive hover effects
+        document.querySelectorAll('.feature-card, .step-card').forEach(card => {
+            card.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-10px) scale(1.02)';
+            });
+            
+            card.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0) scale(1)';
+            });
+        });
+
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.altKey) {
+                switch(e.key) {
+                    case 'r':
+                        e.preventDefault();
+                        window.location.href = 'register.php';
+                        break;
+                    case 'l':
+                        e.preventDefault();
+                        window.location.href = 'login.php';
+                        break;
+                }
             }
         });
     </script>

@@ -1,232 +1,64 @@
 <?php
-// Handle registration form submission
+// register.php - User Registration
 require_once 'config.php';
+
+// Redirect if already logged in
+if (Utils::isLoggedIn()) {
+    Utils::redirect('dashboard.php');
+}
 
 $registration_error = '';
 $registration_success = '';
 
+// Handle registration form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
-    $username = Utils::sanitizeInput($_POST['username']);
-    $email = Utils::sanitizeInput($_POST['email']);
-    $fullName = Utils::sanitizeInput($_POST['full_name']);
-    $password = $_POST['password'];
-    $confirmPassword = $_POST['confirm_password'];
-    
-    // Validate inputs
-    if (strlen($username) < 3) {
-        $registration_error = 'Username must be at least 3 characters long.';
-    } elseif (!Utils::validateEmail($email)) {
-        $registration_error = 'Please enter a valid email address.';
-    } elseif (strlen($password) < 8) {
-        $registration_error = 'Password must be at least 8 characters long.';
-    } elseif ($password !== $confirmPassword) {
-        $registration_error = 'Passwords do not match.';
-    } elseif (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/', $password)) {
-        $registration_error = 'Password must contain at least one uppercase letter, one lowercase letter, and one number.';
+    // Verify CSRF token
+    if (!Utils::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+        $registration_error = 'Invalid request. Please try again.';
     } else {
-        // Try to register
-        try {
-            if ($userManager->register($username, $email, $password, $fullName)) {
-                $registration_success = 'Account created successfully! Please sign in.';
+        // Sanitize inputs
+        $username = Utils::sanitizeInput($_POST['username'] ?? '');
+        $email = Utils::sanitizeInput($_POST['email'] ?? '');
+        $fullName = Utils::sanitizeInput($_POST['full_name'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $confirmPassword = $_POST['confirm_password'] ?? '';
+        
+        // Basic validation
+        if (empty($username) || empty($email) || empty($password)) {
+            $registration_error = 'All required fields must be filled.';
+        } elseif ($password !== $confirmPassword) {
+            $registration_error = 'Passwords do not match.';
+        } else {
+            // Attempt registration
+            $result = $userManager->register($username, $email, $password, $fullName);
+            
+            if ($result['success']) {
+                $registration_success = $result['message'];
+                // Clear form data
+                unset($_POST);
             } else {
-                $registration_error = 'Username or email already exists. Please choose different ones.';
+                $registration_error = $result['message'];
             }
-        } catch (Exception $e) {
-            $registration_error = 'Registration failed: ' . $e->getMessage();
         }
     }
 }
+
+// Generate CSRF token for form
+$csrf_token = Utils::generateCSRFToken();
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register - Receipt Logger</title>
-    <link rel="icon" href="icons/ReceiptLogger.png" type="image/png">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#0d6efd">
-    <style>
-        body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding: 20px 0;
-        }
-        
-        .register-container {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            padding: 2.5rem;
-            max-width: 450px;
-            width: 100%;
-            margin: 0 auto;
-        }
-        
-        .logo {
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 1.5rem;
-            display: block;
-            border-radius: 50%;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-        }
-        
-        .btn-primary {
-            background: linear-gradient(45deg, #667eea, #764ba2);
-            border: none;
-            border-radius: 50px;
-            padding: 12px 0;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        
-        .btn-primary:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
-        }
-        
-        .btn-outline-primary {
-            border: 2px solid #667eea;
-            color: #667eea;
-            border-radius: 50px;
-            padding: 10px 20px;
-            transition: all 0.3s ease;
-        }
-        
-        .btn-outline-primary:hover {
-            background: #667eea;
-            border-color: #667eea;
-            color: white;
-        }
-        
-        .form-control {
-            border: 2px solid #e9ecef;
-            border-radius: 10px;
-            padding: 12px 15px;
-            transition: all 0.3s ease;
-        }
-        
-        .form-control:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
-        }
-        
-        .form-floating > label {
-            opacity: 0.65;
-        }
-
-        .form-floating > .form-control:focus ~ label,
-        .form-floating > .form-control:not(:placeholder-shown) ~ label {
-            opacity: 1;
-            transform: scale(0.85) translateY(-0.5rem) translateX(0.15rem);
-        }
-        
-        .password-strength {
-            height: 4px;
-            margin-top: 0.5rem;
-            border-radius: 2px;
-            background: #e9ecef;
-            overflow: hidden;
-        }
-        
-        .password-strength-bar {
-            height: 100%;
-            transition: all 0.3s ease;
-            border-radius: 2px;
-            width: 0%;
-        }
-        
-        .strength-weak { background: #dc3545; width: 25%; }
-        .strength-fair { background: #ffc107; width: 50%; }
-        .strength-good { background: #20c997; width: 75%; }
-        .strength-strong { background: #198754; width: 100%; }
-        
-        .password-requirements {
-            font-size: 0.875rem;
-            margin-top: 0.5rem;
-            display: none;
-        }
-        
-        .password-requirements.show {
-            display: block;
-        }
-        
-        .requirement {
-            display: flex;
-            align-items: center;
-            margin-bottom: 0.25rem;
-            color: #6c757d;
-        }
-        
-        .requirement.met {
-            color: #198754;
-        }
-        
-        .requirement i {
-            width: 16px;
-            margin-right: 0.5rem;
-        }
-        
-        .divider {
-            text-align: center;
-            margin: 1.5rem 0;
-            position: relative;
-        }
-        
-        .divider::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: #e9ecef;
-        }
-        
-        .divider span {
-            background: white;
-            padding: 0 1rem;
-            color: #6c757d;
-        }
-        
-        .terms-checkbox {
-            transform: scale(1.2);
-            margin-right: 0.75rem;
-        }
-        
-        .terms-text {
-            font-size: 0.875rem;
-            line-height: 1.4;
-        }
-        
-        @media (max-width: 768px) {
-            .register-container {
-                padding: 2rem;
-                margin: 0 15px;
-            }
-            
-            .logo {
-                width: 60px;
-                height: 60px;
-            }
-        }
-    </style>
+    <?php renderHeader('Register', 'Create your LogIt account to start managing receipts'); ?>
 </head>
-<body>
+<body class="auth-background">
     <div class="container">
         <div class="row justify-content-center">
             <div class="col-md-6 col-lg-5">
-                <div class="register-container">
-                    <img src="icons/ReceiptLogger.png" alt="Receipt Logger" class="logo">
+                <div class="auth-container">
+                    <img src="icons/LogIt.png" alt="LogIt" class="logo float">
                     <h2 class="text-center mb-3 fw-bold">Create Account</h2>
-                    <p class="text-center text-muted mb-4">Join Receipt Logger today</p>
+                    <p class="text-center text-muted mb-4">Join LogIt today and start organizing your receipts</p>
                     
                     <?php if ($registration_error): ?>
                     <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -249,77 +81,124 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
                     </div>
                     <?php endif; ?>
                     
-                    <form method="POST" action="register.php" id="registerForm">
+                    <form method="POST" action="register.php" id="registerForm" novalidate>
+                        <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
+                        
                         <div class="form-floating mb-3">
-                            <input type="text" class="form-control" id="fullName" name="full_name" placeholder="Full Name" required 
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="fullName" 
+                                   name="full_name" 
+                                   placeholder="Full Name"
                                    value="<?php echo isset($_POST['full_name']) ? htmlspecialchars($_POST['full_name']) : ''; ?>">
                             <label for="fullName"><i class="fas fa-user me-2"></i>Full Name</label>
                         </div>
                         
                         <div class="form-floating mb-3">
-                            <input type="text" class="form-control" id="username" name="username" placeholder="Username" required 
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="username" 
+                                   name="username" 
+                                   placeholder="Username" 
+                                   required 
+                                   minlength="3"
+                                   pattern="[a-zA-Z0-9_]{3,}"
                                    value="<?php echo isset($_POST['username']) ? htmlspecialchars($_POST['username']) : ''; ?>">
                             <label for="username"><i class="fas fa-at me-2"></i>Username</label>
-                            <div class="form-text">Choose a unique username (3+ characters)</div>
+                            <div class="form-text">Choose a unique username (3+ characters, letters, numbers, underscore only)</div>
+                            <div class="invalid-feedback">
+                                Username must be at least 3 characters long and contain only letters, numbers, and underscores.
+                            </div>
                         </div>
                         
                         <div class="form-floating mb-3">
-                            <input type="email" class="form-control" id="email" name="email" placeholder="Email" required 
+                            <input type="email" 
+                                   class="form-control" 
+                                   id="email" 
+                                   name="email" 
+                                   placeholder="Email" 
+                                   required 
                                    value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>">
                             <label for="email"><i class="fas fa-envelope me-2"></i>Email Address</label>
+                            <div class="invalid-feedback">
+                                Please provide a valid email address.
+                            </div>
                         </div>
                         
                         <div class="form-floating mb-3">
-                            <input type="password" class="form-control" id="password" name="password" placeholder="Password" required>
+                            <input type="password" 
+                                   class="form-control" 
+                                   id="password" 
+                                   name="password" 
+                                   placeholder="Password" 
+                                   required
+                                   minlength="8">
                             <label for="password"><i class="fas fa-lock me-2"></i>Password</label>
-                            <div class="password-strength">
+                            <div class="password-strength mt-2">
                                 <div class="password-strength-bar" id="strengthBar"></div>
                             </div>
-                            <div class="password-requirements" id="passwordRequirements">
+                            <div class="password-requirements mt-2" id="passwordRequirements">
                                 <div class="requirement" id="lengthReq">
-                                    <i class="fas fa-times"></i>
+                                    <i class="fas fa-times text-danger"></i>
                                     <span>At least 8 characters</span>
                                 </div>
                                 <div class="requirement" id="uppercaseReq">
-                                    <i class="fas fa-times"></i>
+                                    <i class="fas fa-times text-danger"></i>
                                     <span>One uppercase letter</span>
                                 </div>
                                 <div class="requirement" id="lowercaseReq">
-                                    <i class="fas fa-times"></i>
+                                    <i class="fas fa-times text-danger"></i>
                                     <span>One lowercase letter</span>
                                 </div>
                                 <div class="requirement" id="numberReq">
-                                    <i class="fas fa-times"></i>
+                                    <i class="fas fa-times text-danger"></i>
                                     <span>One number</span>
                                 </div>
                             </div>
                         </div>
                         
                         <div class="form-floating mb-3">
-                            <input type="password" class="form-control" id="confirmPassword" name="confirm_password" placeholder="Confirm Password" required>
+                            <input type="password" 
+                                   class="form-control" 
+                                   id="confirmPassword" 
+                                   name="confirm_password" 
+                                   placeholder="Confirm Password" 
+                                   required>
                             <label for="confirmPassword"><i class="fas fa-lock me-2"></i>Confirm Password</label>
                             <div class="form-text" id="passwordMatch"></div>
+                            <div class="invalid-feedback">
+                                Passwords must match.
+                            </div>
                         </div>
                         
                         <div class="form-check mb-4">
-                            <input class="form-check-input terms-checkbox" type="checkbox" id="agreeTerms" required>
-                            <label class="form-check-label terms-text" for="agreeTerms">
-                                I agree to the Terms of Service and Privacy Policy
+                            <input class="form-check-input" 
+                                   type="checkbox" 
+                                   id="agreeTerms" 
+                                   required>
+                            <label class="form-check-label" for="agreeTerms">
+                                I agree to the <a href="#" class="text-decoration-none">Terms of Service</a> 
+                                and <a href="#" class="text-decoration-none">Privacy Policy</a>
                             </label>
+                            <div class="invalid-feedback">
+                                You must agree to the terms and conditions.
+                            </div>
                         </div>
                         
                         <div class="d-grid mb-3">
-                            <button type="submit" name="register" class="btn btn-primary btn-lg" id="registerBtn" disabled>
+                            <button type="submit" 
+                                    name="register" 
+                                    class="btn btn-accent btn-lg" 
+                                    id="registerBtn" 
+                                    disabled>
                                 <i class="fas fa-user-plus me-2"></i>Create Account
                             </button>
                         </div>
                         
-                        <div class="divider">
-                            <span>or</span>
-                        </div>
-                        
                         <div class="text-center">
-                            <p class="mb-2">Already have an account?</p>
+                            <div class="mb-2">
+                                <span class="text-muted">Already have an account?</span>
+                            </div>
                             <a href="login.php" class="btn btn-outline-primary">
                                 <i class="fas fa-sign-in-alt me-2"></i>Sign In
                             </a>
@@ -337,8 +216,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <?php renderScripts(); ?>
     <script>
+        // Form validation and interactive features
+        const form = document.getElementById('registerForm');
         const passwordInput = document.getElementById('password');
         const confirmPasswordInput = document.getElementById('confirmPassword');
         const strengthBar = document.getElementById('strengthBar');
@@ -353,26 +234,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
         const lowercaseReq = document.getElementById('lowercaseReq');
         const numberReq = document.getElementById('numberReq');
         
-        // Show requirements when password field is focused
-        passwordInput.addEventListener('focus', function() {
-            passwordRequirements.classList.add('show');
+        let passwordStrength = 0;
+        let passwordsMatch = false;
+        
+        // Show/hide password requirements
+        passwordInput.addEventListener('focus', () => {
+            passwordRequirements.style.display = 'block';
         });
         
-        // Hide requirements when password field loses focus and is empty
-        passwordInput.addEventListener('blur', function() {
-            if (this.value === '') {
-                passwordRequirements.classList.remove('show');
+        passwordInput.addEventListener('blur', (e) => {
+            if (!e.target.value) {
+                passwordRequirements.style.display = 'none';
             }
         });
         
-        // Password strength checking
+        // Real-time password validation
         passwordInput.addEventListener('input', function() {
             const password = this.value;
             let score = 0;
-            
-            if (password.length > 0) {
-                passwordRequirements.classList.add('show');
-            }
             
             // Check requirements
             const hasLength = password.length >= 8;
@@ -392,80 +271,195 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
             if (hasLowercase) score++;
             if (hasNumber) score++;
             
-            // Update strength bar
-            strengthBar.className = 'password-strength-bar';
-            if (score === 1) strengthBar.classList.add('strength-weak');
-            else if (score === 2) strengthBar.classList.add('strength-fair');
-            else if (score === 3) strengthBar.classList.add('strength-good');
-            else if (score === 4) strengthBar.classList.add('strength-strong');
+            passwordStrength = score;
             
+            // Update strength bar
+            updateStrengthBar(score);
+            
+            // Check form validity
             checkFormValidity();
+            
+            // Recheck password match if confirm password has value
+            if (confirmPasswordInput.value) {
+                checkPasswordMatch();
+            }
         });
         
-        // Confirm password checking
-        confirmPasswordInput.addEventListener('input', function() {
-            const password = passwordInput.value;
-            const confirmPassword = this.value;
+        // Password confirmation
+        confirmPasswordInput.addEventListener('input', checkPasswordMatch);
+        
+        // Terms checkbox
+        agreeTerms.addEventListener('change', checkFormValidity);
+        
+        // Username validation
+        document.getElementById('username').addEventListener('input', function() {
+            const username = this.value;
+            const isValid = /^[a-zA-Z0-9_]{3,}$/.test(username);
             
-            if (confirmPassword === '') {
-                passwordMatch.textContent = '';
-                passwordMatch.className = 'form-text';
-            } else if (password === confirmPassword) {
-                passwordMatch.textContent = '✓ Passwords match';
-                passwordMatch.className = 'form-text text-success';
+            if (username.length > 0) {
+                if (isValid) {
+                    this.classList.remove('is-invalid');
+                    this.classList.add('is-valid');
+                } else {
+                    this.classList.remove('is-valid');
+                    this.classList.add('is-invalid');
+                }
             } else {
-                passwordMatch.textContent = '✗ Passwords do not match';
-                passwordMatch.className = 'form-text text-danger';
+                this.classList.remove('is-valid', 'is-invalid');
             }
             
             checkFormValidity();
         });
         
-        // Terms agreement
-        agreeTerms.addEventListener('change', checkFormValidity);
+        // Email validation
+        document.getElementById('email').addEventListener('input', function() {
+            const email = this.value;
+            const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+            
+            if (email.length > 0) {
+                if (isValid) {
+                    this.classList.remove('is-invalid');
+                    this.classList.add('is-valid');
+                } else {
+                    this.classList.remove('is-valid');
+                    this.classList.add('is-invalid');
+                }
+            } else {
+                this.classList.remove('is-valid', 'is-invalid');
+            }
+            
+            checkFormValidity();
+        });
         
         function updateRequirement(element, met) {
             const icon = element.querySelector('i');
             if (met) {
-                element.classList.add('met');
-                icon.className = 'fas fa-check';
+                element.classList.add('text-success');
+                element.classList.remove('text-danger');
+                icon.className = 'fas fa-check text-success';
             } else {
-                element.classList.remove('met');
-                icon.className = 'fas fa-times';
+                element.classList.add('text-danger');
+                element.classList.remove('text-success');
+                icon.className = 'fas fa-times text-danger';
             }
         }
         
-        function checkFormValidity() {
+        function updateStrengthBar(score) {
+            strengthBar.className = 'password-strength-bar';
+            strengthBar.style.width = (score * 25) + '%';
+            
+            if (score === 1) {
+                strengthBar.style.background = '#dc3545';
+            } else if (score === 2) {
+                strengthBar.style.background = '#ffc107';
+            } else if (score === 3) {
+                strengthBar.style.background = '#fd7e14';
+            } else if (score === 4) {
+                strengthBar.style.background = '#28a745';
+            }
+        }
+        
+        function checkPasswordMatch() {
             const password = passwordInput.value;
             const confirmPassword = confirmPasswordInput.value;
-            const hasLength = password.length >= 8;
-            const hasUppercase = /[A-Z]/.test(password);
-            const hasLowercase = /[a-z]/.test(password);
-            const hasNumber = /\d/.test(password);
-            const passwordsMatch = password === confirmPassword && confirmPassword !== '';
+            
+            if (confirmPassword === '') {
+                passwordMatch.textContent = '';
+                passwordMatch.className = 'form-text';
+                confirmPasswordInput.classList.remove('is-valid', 'is-invalid');
+                passwordsMatch = false;
+            } else if (password === confirmPassword) {
+                passwordMatch.textContent = '✓ Passwords match';
+                passwordMatch.className = 'form-text text-success';
+                confirmPasswordInput.classList.remove('is-invalid');
+                confirmPasswordInput.classList.add('is-valid');
+                passwordsMatch = true;
+            } else {
+                passwordMatch.textContent = '✗ Passwords do not match';
+                passwordMatch.className = 'form-text text-danger';
+                confirmPasswordInput.classList.remove('is-valid');
+                confirmPasswordInput.classList.add('is-invalid');
+                passwordsMatch = false;
+            }
+            
+            checkFormValidity();
+        }
+        
+        function checkFormValidity() {
+            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+            const password = passwordInput.value;
+            const confirmPassword = confirmPasswordInput.value;
             const termsAgreed = agreeTerms.checked;
             
-            const isValid = hasLength && hasUppercase && hasLowercase && hasNumber && passwordsMatch && termsAgreed;
+            const usernameValid = /^[a-zA-Z0-9_]{3,}$/.test(username);
+            const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+            const passwordValid = passwordStrength === 4;
+            const confirmPasswordValid = passwordsMatch && confirmPassword !== '';
+            
+            const isValid = usernameValid && emailValid && passwordValid && confirmPasswordValid && termsAgreed;
             
             registerBtn.disabled = !isValid;
             
+            // Update button appearance
             if (isValid) {
                 registerBtn.classList.remove('btn-secondary');
-                registerBtn.classList.add('btn-primary');
+                registerBtn.classList.add('btn-accent');
             } else {
-                registerBtn.classList.remove('btn-primary');
+                registerBtn.classList.remove('btn-accent');
                 registerBtn.classList.add('btn-secondary');
             }
         }
         
-        // Form submission
-        document.getElementById('registerForm').addEventListener('submit', function(e) {
+        // Form submission handling
+        form.addEventListener('submit', function(e) {
+            // Final validation
+            if (registerBtn.disabled) {
+                e.preventDefault();
+                return false;
+            }
+            
+            // Disable button and show loading state
             registerBtn.disabled = true;
             registerBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating Account...';
+            
+            // Allow form to submit
         });
         
-        // Initialize form validation on page load
+        // Initialize form validation
         checkFormValidity();
+        
+        // Add CSS for password strength bar
+        const style = document.createElement('style');
+        style.textContent = `
+            .password-strength {
+                height: 4px;
+                background: #e9ecef;
+                border-radius: 2px;
+                overflow: hidden;
+            }
+            .password-strength-bar {
+                height: 100%;
+                width: 0%;
+                transition: all 0.3s ease;
+                border-radius: 2px;
+            }
+            .password-requirements {
+                font-size: 0.875rem;
+                display: none;
+            }
+            .requirement {
+                display: flex;
+                align-items: center;
+                margin-bottom: 0.25rem;
+            }
+            .requirement i {
+                width: 16px;
+                margin-right: 0.5rem;
+            }
+        `;
+        document.head.appendChild(style);
     </script>
 </body>
 </html>
+        

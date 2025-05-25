@@ -1,58 +1,58 @@
 {
-  "name": "Receipt Logger",
-  "short_name": "Receipts",
-  "description": "Modern receipt management and logging application",
+  "name": "LogIt - Receipt Manager",
+  "short_name": "LogIt",
+  "description": "Modern receipt management and expense tracking application",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#0d6efd",
+  "theme_color": "#fd7e14",
   "orientation": "portrait-primary",
   "scope": "/",
   "icons": [
     {
-      "src": "icons/ReceiptLogger-72.png",
+      "src": "icons/LogIt-72.png",
       "sizes": "72x72",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "icons/ReceiptLogger-96.png",
+      "src": "icons/LogIt-96.png",
       "sizes": "96x96",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "icons/ReceiptLogger-128.png",
+      "src": "icons/LogIt-128.png",
       "sizes": "128x128",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "icons/ReceiptLogger-144.png",
+      "src": "icons/LogIt-144.png",
       "sizes": "144x144",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "icons/ReceiptLogger-152.png",
+      "src": "icons/LogIt-152.png",
       "sizes": "152x152",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "icons/ReceiptLogger-192.png",
+      "src": "icons/LogIt-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "icons/ReceiptLogger-384.png",
+      "src": "icons/LogIt-384.png",
       "sizes": "384x384",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "icons/ReceiptLogger-512.png",
+      "src": "icons/LogIt-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
@@ -64,7 +64,7 @@
       "sizes": "390x844",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Dashboard on mobile"
+      "label": "LogIt Dashboard on mobile"
     },
     {
       "src": "screenshots/upload-mobile.png",
@@ -78,10 +78,10 @@
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Dashboard on desktop"
+      "label": "LogIt Dashboard on desktop"
     }
   ],
-  "categories": ["business", "productivity", "finance"],
+  "categories": ["business", "productivity", "finance", "utilities"],
   "shortcuts": [
     {
       "name": "Upload Receipt",
@@ -106,6 +106,20 @@
           "sizes": "96x96"
         }
       ]
+    },
+    {
+      "name": "Reports",
+      "short_name": "Reports",
+      "description": "View expense reports",
+      "url": "/reports.php",
+      "icons": [
+        {
+          "src": "icons/reports-shortcut.png",
+          "sizes": "96x96"
+        }
+      ]
     }
-  ]
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
 }

@@ -1,167 +1,121 @@
+<?php
+// login.php - User Login
+require_once 'config.php';
+
+// Redirect if already logged in
+if (Utils::isLoggedIn()) {
+    Utils::redirect('dashboard.php');
+}
+
+// Handle login form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
+    // Verify CSRF token
+    if (!Utils::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+        Utils::redirect('login.php', 'Invalid request. Please try again.', 'error');
+    }
+    
+    $username = Utils::sanitizeInput($_POST['username'] ?? '');
+    $password = $_POST['password'] ?? '';
+    
+    if (empty($username) || empty($password)) {
+        Utils::redirect('login.php', 'Please enter both username and password.', 'error');
+    }
+    
+    $result = $userManager->authenticate($username, $password);
+    
+    if ($result['success']) {
+        Utils::redirect('dashboard.php', 'Welcome back!', 'success');
+    } else {
+        Utils::redirect('login.php', $result['message'], 'error');
+    }
+}
+
+// Generate CSRF token
+$csrf_token = Utils::generateCSRFToken();
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Receipt Logger</title>
-    <link rel="icon" href="icons/ReceiptLogger.png" type="image/png">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#0d6efd">
-    <style>
-        body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        
-        .login-container {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            padding: 2.5rem;
-            max-width: 400px;
-            width: 100%;
-            margin: 0 auto;
-        }
-        
-        .logo {
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 1.5rem;
-            display: block;
-            border-radius: 50%;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-        }
-        
-        .btn-primary {
-            background: linear-gradient(45deg, #667eea, #764ba2);
-            border: none;
-            border-radius: 50px;
-            padding: 12px 0;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
-        }
-        
-        .form-control {
-            border: 2px solid #e9ecef;
-            border-radius: 10px;
-            padding: 12px 15px;
-            transition: all 0.3s ease;
-        }
-        
-        .form-control:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
-        }
-        
-        .input-group-text {
-            background: transparent;
-            border: 2px solid #e9ecef;
-            border-right: none;
-            border-radius: 10px 0 0 10px;
-        }
-        
-        .input-group .form-control {
-            border-left: none;
-            border-radius: 0 10px 10px 0;
-        }
-        
-        .text-muted {
-            color: #6c757d !important;
-        }
-        
-        .alert {
-            border-radius: 10px;
-            border: none;
-        }
-        
-        .divider {
-            text-align: center;
-            margin: 1.5rem 0;
-            position: relative;
-        }
-        
-        .divider::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: #e9ecef;
-        }
-        
-        .divider span {
-            background: white;
-            padding: 0 1rem;
-            color: #6c757d;
-        }
-
-        .form-floating > label {
-            opacity: 0.65;
-        }
-
-        .form-floating > .form-control:focus ~ label,
-        .form-floating > .form-control:not(:placeholder-shown) ~ label {
-            opacity: 1;
-            transform: scale(0.85) translateY(-0.5rem) translateX(0.15rem);
-        }
-    </style>
+    <?php renderHeader('Login', 'Sign in to your LogIt account'); ?>
 </head>
-<body>
+<body class="auth-background">
     <div class="container">
         <div class="row justify-content-center">
             <div class="col-md-6 col-lg-4">
-                <div class="login-container">
-                    <img src="icons/ReceiptLogger.png" alt="Receipt Logger" class="logo">
+                <div class="auth-container">
+                    <img src="icons/LogIt.png" alt="LogIt" class="logo float">
                     <h2 class="text-center mb-4 fw-bold">Welcome Back</h2>
-                    <p class="text-center text-muted mb-4">Sign in to your account</p>
+                    <p class="text-center text-muted mb-4">Sign in to your LogIt account</p>
                     
                     <?php
-                    require_once 'config.php';
-                    
                     $flash = Utils::getFlashMessage();
                     if ($flash['message']):
                     ?>
                     <div class="alert alert-<?php echo $flash['type'] === 'error' ? 'danger' : 'success'; ?> alert-dismissible fade show" role="alert">
+                        <i class="fas fa-<?php echo $flash['type'] === 'error' ? 'exclamation-triangle' : 'check-circle'; ?> me-2"></i>
                         <?php echo htmlspecialchars($flash['message']); ?>
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                     <?php endif; ?>
                     
-                    <form method="POST" action="login.php">
+                    <form method="POST" action="login.php" id="loginForm" novalidate>
+                        <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
+                        
                         <div class="form-floating mb-3">
-                            <input type="text" class="form-control" id="username" name="username" placeholder="Username or Email" required>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="username" 
+                                   name="username" 
+                                   placeholder="Username or Email" 
+                                   required
+                                   autocomplete="username">
                             <label for="username"><i class="fas fa-user me-2"></i>Username or Email</label>
+                            <div class="invalid-feedback">
+                                Please enter your username or email.
+                            </div>
                         </div>
                         
                         <div class="form-floating mb-4">
-                            <input type="password" class="form-control" id="password" name="password" placeholder="Password" required>
+                            <input type="password" 
+                                   class="form-control" 
+                                   id="password" 
+                                   name="password" 
+                                   placeholder="Password" 
+                                   required
+                                   autocomplete="current-password">
                             <label for="password"><i class="fas fa-lock me-2"></i>Password</label>
+                            <div class="invalid-feedback">
+                                Please enter your password.
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="rememberMe" name="remember_me">
+                                    <label class="form-check-label" for="rememberMe">
+                                        Remember me
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col text-end">
+                                <a href="forgot-password.php" class="text-decoration-none text-muted">
+                                    Forgot password?
+                                </a>
+                            </div>
                         </div>
                         
                         <div class="d-grid mb-3">
-                            <button type="submit" name="login" class="btn btn-primary btn-lg">
+                            <button type="submit" name="login" class="btn btn-primary btn-lg" id="loginBtn">
                                 <i class="fas fa-sign-in-alt me-2"></i>Sign In
                             </button>
                         </div>
                         
-                        <div class="divider">
-                            <span>or</span>
-                        </div>
-                        
-                        <div class="d-grid">
-                            <a href="register.php" class="btn btn-outline-primary">
+                        <div class="text-center">
+                            <div class="mb-2">
+                                <span class="text-muted">Don't have an account?</span>
+                            </div>
+                            <a href="register.php" class="btn btn-outline-accent">
                                 <i class="fas fa-user-plus me-2"></i>Create Account
                             </a>
                         </div>
@@ -178,8 +132,74 @@
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <?php renderScripts(); ?>
     <script>
+        // Form validation and enhancement
+        const form = document.getElementById('loginForm');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const loginBtn = document.getElementById('loginBtn');
+        
+        // Real-time validation
+        function validateForm() {
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value;
+            
+            // Username validation
+            if (username.length > 0) {
+                usernameInput.classList.remove('is-invalid');
+                usernameInput.classList.add('is-valid');
+            } else {
+                usernameInput.classList.remove('is-valid', 'is-invalid');
+            }
+            
+            // Password validation
+            if (password.length > 0) {
+                passwordInput.classList.remove('is-invalid');
+                passwordInput.classList.add('is-valid');
+            } else {
+                passwordInput.classList.remove('is-valid', 'is-invalid');
+            }
+            
+            // Enable/disable submit button
+            const isValid = username.length > 0 && password.length > 0;
+            loginBtn.disabled = !isValid;
+        }
+        
+        // Add event listeners
+        usernameInput.addEventListener('input', validateForm);
+        passwordInput.addEventListener('input', validateForm);
+        
+        // Form submission
+        form.addEventListener('submit', function(e) {
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value;
+            
+            // Client-side validation
+            if (!username || !password) {
+                e.preventDefault();
+                
+                if (!username) {
+                    usernameInput.classList.add('is-invalid');
+                }
+                if (!password) {
+                    passwordInput.classList.add('is-invalid');
+                }
+                
+                return false;
+            }
+            
+            // Show loading state
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Signing In...';
+        });
+        
+        // Initial validation
+        validateForm();
+        
+        // Focus on username field
+        usernameInput.focus();
+        
         // PWA Service Worker Registration
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js')
@@ -193,10 +213,10 @@
             e.preventDefault();
             deferredPrompt = e;
             
-            // Show install button or prompt
+            // Show install button
             const installButton = document.createElement('button');
-            installButton.className = 'btn btn-sm btn-outline-secondary mt-2';
-            installButton.innerHTML = '<i class="fas fa-download me-1"></i>Install App';
+            installButton.className = 'btn btn-sm btn-outline-secondary mt-2 w-100';
+            installButton.innerHTML = '<i class="fas fa-download me-1"></i>Install LogIt App';
             installButton.onclick = () => {
                 deferredPrompt.prompt();
                 deferredPrompt.userChoice.then((choiceResult) => {
@@ -208,22 +228,16 @@
                 });
             };
             
-            document.querySelector('.login-container').appendChild(installButton);
+            document.querySelector('.auth-container').appendChild(installButton);
+        });
+        
+        // Handle keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Enter key to submit form
+            if (e.key === 'Enter' && !loginBtn.disabled) {
+                form.submit();
+            }
         });
     </script>
 </body>
 </html>
-
-<?php
-// Handle login form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
-    $username = Utils::sanitizeInput($_POST['username']);
-    $password = $_POST['password'];
-    
-    if ($userManager->authenticate($username, $password)) {
-        Utils::redirect('dashboard.php', 'Welcome back!', 'success');
-    } else {
-        Utils::redirect('login.php', 'Invalid username or password.', 'error');
-    }
-}
-?>
