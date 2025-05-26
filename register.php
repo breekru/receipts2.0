@@ -170,7 +170,14 @@ $csrf_token = Utils::generateCSRFToken();
                                 Passwords must match.
                             </div>
                         </div>
-                        
+<?php
+                        // Add this debug code after line where password is hashed
+echo "DEBUG: Password = " . (empty($password) ? 'EMPTY' : 'HAS VALUE') . "<br>";
+echo "DEBUG: Password length = " . strlen($password) . "<br>";
+$testHash = password_hash($password, PASSWORD_DEFAULT);
+echo "DEBUG: Hash generated = " . ($testHash ? 'YES' : 'NO') . "<br>";
+echo "DEBUG: Hash length = " . strlen($testHash) . "<br>";
+              ?>          
                         <div class="form-check mb-4">
                             <input class="form-check-input" 
                                    type="checkbox" 
