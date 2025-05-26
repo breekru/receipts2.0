@@ -4,9 +4,10 @@ session_start();
 
 // Database connection - update these with your actual values
 $host = 'localhost';
-$username = 'your_db_user';
-$password = 'your_db_password';  
-$database = 'logit_simple';
+$username = 'logit_user';
+$password = 'aycbkdTs*3kw2NLuFaD*';  
+$database = 'receiptV2';
+
 
 // Create PDO connection
 try {
