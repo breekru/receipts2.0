@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
         $username = Utils::sanitizeInput($_POST['username'] ?? '');
         $email = Utils::sanitizeInput($_POST['email'] ?? '');
         $fullName = Utils::sanitizeInput($_POST['full_name'] ?? '');
-        $password = $_POST['password_hash'] ?? '';
+        $password = $_POST['password'] ?? '';
         $confirmPassword = $_POST['confirm_password'] ?? '';
         
         // Basic validation

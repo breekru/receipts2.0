@@ -39,7 +39,7 @@ foreach ($required_dirs as $dir) {
 }
 
 // Database configuration - Load from secure location
-require_once('/home/blkfarms/secure/db_config.php');
+require_once('/home/blkfarms/secure/db_config_dev.php');
 
 /**
  * Database Connection Class
