@@ -1,10 +1,13 @@
 <?php
-// logout.php - User Logout
+// logout.php - Simple logout
 require_once 'config.php';
 
-// Perform logout
-$userManager->logout();
+// Clear session
+session_unset();
+session_destroy();
 
-// Redirect to login page with success message
-Utils::redirect('login.php', 'You have been logged out successfully.', 'success');
+// Start new session for flash message
+session_start();
+
+redirect('login.php', 'You have been logged out successfully.', 'success');
 ?>
