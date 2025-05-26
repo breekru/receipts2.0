@@ -86,7 +86,7 @@ $csrf_token = Utils::generateCSRFToken();
                     <?php endif; ?>
                     
                     <!-- SAME FORM STRUCTURE AS DEBUG VERSION -->
-                    <form method="POST" action="register_working.php">
+                    <form method="POST" action="register_simple.php">
                         <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
                         
                         <div class="form-floating mb-3">
