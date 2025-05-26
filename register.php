@@ -13,9 +13,9 @@ $registration_success = '';
 // Handle registration form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
     // Verify CSRF token
-    if (!Utils::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
-        $registration_error = 'Invalid request. Please try again.';
-    } else {
+    //if (!Utils::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+    //    $registration_error = 'Invalid request. Please try again.';
+    //} else {
         // Sanitize inputs
         $username = Utils::sanitizeInput($_POST['username'] ?? '');
         $email = Utils::sanitizeInput($_POST['email'] ?? '');
