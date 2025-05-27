@@ -1,4 +1,237 @@
-<?php
+<script>
+// Enhanced Mobile-Friendly Upload with Drag & Drop
+const dropZone = document.getElementById('uploadDropZone');
+const fileInput = document.getElementById('receiptFile');
+const uploadContent = document.getElementById('uploadContent');
+const uploadPreview = document.getElementById('uploadPreview');
+const previewImage = document.getElementById('previewImage');
+const previewFilename = document.getElementById('previewFilename');
+const previewFilesize = document.getElementById('previewFilesize');
+
+// Drag and drop functionality
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, preventDefaults, false);
+    document.body.addEventListener(eventName, preventDefaults, false);
+});
+
+['dragenter', 'dragover'].forEach(eventName => {
+    dropZone.addEventListener(eventName, highlight, false);
+});
+
+['dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, unhighlight, false);
+});
+
+function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+}
+
+function highlight(e) {
+    dropZone.classList.add('dragover');
+}
+
+function unhighlight(e) {
+    dropZone.classList.remove('dragover');
+}
+
+// Handle file drop
+dropZone.addEventListener('drop', handleDrop, false);
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', handleFileSelect);
+
+function handleDrop(e) {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    handleFiles(files);
+}
+
+function handleFileSelect(e) {
+    const files = e.target.files;
+    handleFiles(files);
+}
+
+function handleFiles(files) {
+    if (files.length > 0) {
+        const file = files[0];
+        if (validateFile(file)) {
+            displayPreview(file);
+        }
+    }
+}
+
+function validateFile(file) {
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'application/pdf'];
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    
+    if (!allowedTypes.includes(file.type)) {
+        alert('Please select a valid image or PDF file.');
+        return false;
+    }
+    
+    if (file.size > maxSize) {
+        alert('File size must be less than 10MB.');
+        return false;
+    }
+    
+    return true;
+}
+
+function displayPreview(file) {
+    uploadContent.classList.add('d-none');
+    uploadPreview.classList.remove('d-none');
+    
+    previewFilename.textContent = file.name;
+    previewFilesize.textContent = formatFileSize(file.size);
+    
+    if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewImage.src = e.target.result;
+            previewImage.classList.remove('d-none');
+        };
+        reader.readAsDataURL(file);
+    } else {
+        previewImage.classList.add('d-none');
+    }
+}
+
+function removeFile() {
+    fileInput.value = '';
+    uploadContent.classList.remove('d-none');
+    uploadPreview.classList.add('d-none');
+    previewImage.src = '';
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Mobile camera capture
+function captureFromCamera() {
+    fileInput.accept = 'image/*';
+    fileInput.capture = 'environment';
+    fileInput.click();
+}
+
+// Auto-fill title based on vendor and category
+document.querySelector('input[name="vendor"]').addEventListener('blur', updateTitle);
+document.querySelector('input[name="category"]').addEventListener('blur', updateTitle);
+
+function updateTitle() {
+    const vendor = document.querySelector('input[name="vendor"]').value;
+    const category = document.querySelector('input[name="category"]').value;
+    const titleField = document.querySelector('input[name="title"]');
+    
+    if (!titleField.value && (vendor || category)) {
+        let title = '';
+        if (category && vendor) {
+            title = `${category} - ${vendor}`;
+        } else if (vendor) {
+            title = vendor;
+        } else if (category) {
+            title = category;
+        }
+        titleField.value = title;
+    }
+}
+
+// Form submission with progress
+document.querySelector('form').addEventListener('submit', function(e) {
+    if (!fileInput.files.length) {
+        e.preventDefault();
+        alert('Please select a file to upload.');
+        return;
+    }
+    
+    const submitBtn = document.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
+});
+</script>
+
+<style>
+.upload-drop-zone {
+    border: 3px dashed #dee2e6;
+    border-radius: 15px;
+    padding: 2rem 1rem;
+    text-align: center;
+    background: #f8f9fa;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    position: relative;
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.upload-drop-zone:hover,
+.upload-drop-zone.dragover {
+    border-color: var(--accent-color);
+    background: rgba(253, 126, 20, 0.05);
+    transform: scale(1.02);
+}
+
+.upload-drop-content {
+    text-align: center;
+}
+
+.upload-preview {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: white;
+    padding: 1rem;
+    border-radius: 10px;
+    border: 2px solid var(--accent-color);
+}
+
+.preview-image {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 2px solid #e9ecef;
+}
+
+.preview-info {
+    flex-grow: 1;
+    text-align: left;
+}
+
+.preview-filename {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.25rem;
+}
+
+.preview-filesize {
+    color: #6c757d;
+    font-size: 0.875rem;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+    .upload-drop-zone {
+        padding: 1.5rem 1rem;
+        min-height: 150px;
+    }
+    
+    .upload-preview {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .preview-info {
+        text-align: center;
+    }
+}
+</style><?php
 // upload.php - Simple upload page
 require_once 'config.php';
 require_login();
@@ -143,7 +376,36 @@ include 'header.php';
                     
                     <div class="mb-3">
                         <label class="form-label">Receipt File *</label>
-                        <input type="file" class="form-control" name="receipt_file" 
+                        
+                        <!-- Mobile Camera Capture Button -->
+                        <div class="d-md-none mb-3">
+                            <button type="button" class="btn btn-success w-100 btn-lg" onclick="captureFromCamera()">
+                                <i class="fas fa-camera me-2"></i>Take Photo with Camera
+                            </button>
+                        </div>
+                        
+                        <!-- Drag & Drop Upload Area -->
+                        <div class="upload-drop-zone" id="uploadDropZone">
+                            <div class="upload-drop-content" id="uploadContent">
+                                <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3" id="uploadIcon"></i>
+                                <h5 id="uploadText">Drag & Drop Receipt Here</h5>
+                                <p class="text-muted mb-3" id="uploadSubtext">or click to browse files</p>
+                                <button type="button" class="btn btn-outline-primary">Choose File</button>
+                            </div>
+                            
+                            <div class="upload-preview d-none" id="uploadPreview">
+                                <img id="previewImage" src="" alt="Preview" class="preview-image">
+                                <div class="preview-info">
+                                    <div class="preview-filename" id="previewFilename"></div>
+                                    <div class="preview-filesize" id="previewFilesize"></div>
+                                    <button type="button" class="btn btn-outline-danger btn-sm mt-2" onclick="removeFile()">
+                                        <i class="fas fa-times me-1"></i>Remove
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <input type="file" class="d-none" name="receipt_file" id="receiptFile"
                                accept="image/*,.pdf" required>
                         <div class="form-text">JPG, PNG, GIF, or PDF files only. Max 10MB.</div>
                     </div>

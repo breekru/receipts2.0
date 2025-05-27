@@ -1,15 +1,28 @@
 <?php
-// dashboard.php - Simple dashboard (replaced by enhanced version)
-// This file has been replaced by enhanced_dashboard_with_modal.php
-// Please use the enhanced version which includes:
-// - PWA support
-// - Advanced image modal with zoom/pan/rotate
-// - Box sharing functionality
-// - Mobile-friendly upload
+// dashboard.php - Enhanced dashboard with sharing and advanced image viewer
+require_once 'config.php';
+require_login();
 
-// Redirect to the enhanced dashboard
-header('Location: enhanced_dashboard_with_modal.php' . (isset($_GET['box']) ? '?box=' . $_GET['box'] : ''));
-exit;
+$user_id = get_current_user_id();
+
+// Get user's boxes (owned + shared)
+$stmt = $pdo->prepare("
+    (SELECT rb.*, 'owner' as access_level, COUNT(r.id) as receipt_count, COALESCE(SUM(r.amount), 0) as total_amount
+     FROM receipt_boxes rb 
+     LEFT JOIN receipts r ON rb.id = r.box_id 
+     WHERE rb.owner_id = ? 
+     GROUP BY rb.id)
+    UNION
+    (SELECT rb.*, IF(bs.can_edit, 'editor', 'viewer') as access_level, COUNT(r.id) as receipt_count, COALESCE(SUM(r.amount), 0) as total_amount
+     FROM receipt_boxes rb
+     JOIN box_shares bs ON rb.id = bs.box_id
+     LEFT JOIN receipts r ON rb.id = r.box_id 
+     WHERE bs.user_id = ?
+     GROUP BY rb.id)
+    ORDER BY access_level = 'owner' DESC, name
+");
+$stmt->execute([$user_id, $user_id]);
+$boxes = $stmt->fetchAll();
 
 // Get selected box
 $selected_box_id = $_GET['box'] ?? ($boxes[0]['id'] ?? null);
@@ -135,6 +148,11 @@ include 'header.php';
     object-fit: cover;
     border-radius: 8px;
     cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.receipt-thumbnail:hover {
+    transform: scale(1.05);
 }
 
 .receipt-status {
@@ -180,6 +198,96 @@ include 'header.php';
     box-shadow: 0 2px 15px rgba(0,0,0,0.08);
     border: none;
 }
+
+.access-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.access-owner { background: #198754; color: white; }
+.access-editor { background: #0d6efd; color: white; }
+.access-viewer { background: #6c757d; color: white; }
+
+/* Advanced Image Modal Styles */
+.advanced-modal {
+    background: rgba(0, 0, 0, 0.9);
+}
+
+.advanced-modal .modal-dialog {
+    max-width: 95vw;
+    max-height: 95vh;
+    margin: 2.5vh auto;
+}
+
+.advanced-modal .modal-content {
+    background: transparent;
+    border: none;
+    height: 90vh;
+}
+
+.advanced-modal .modal-header {
+    background: rgba(0, 0, 0, 0.8);
+    border: none;
+    padding: 1rem;
+}
+
+.advanced-modal .modal-body {
+    padding: 0;
+    position: relative;
+    height: 100%;
+    overflow: hidden;
+}
+
+.image-container {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.zoomable-image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    cursor: grab;
+    transition: transform 0.1s ease;
+    transform-origin: center center;
+}
+
+.zoomable-image:active {
+    cursor: grabbing;
+}
+
+.zoom-controls {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 1060;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.zoom-controls .btn {
+    background: rgba(0, 0, 0, 0.7);
+    border: none;
+    color: white;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.zoom-controls .btn:hover {
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+}
 </style>
 
 <!-- Page Header -->
@@ -191,9 +299,18 @@ include 'header.php';
             </h1>
             <p class="text-muted mb-0">Welcome back, <?php echo htmlspecialchars($_SESSION['username']); ?>!</p>
         </div>
-        <a href="upload.php" class="btn btn-accent btn-lg">
-            <i class="fas fa-plus me-2"></i>Upload Receipt
-        </a>
+        <div class="d-flex gap-2">
+            <?php if ($current_box['access_level'] !== 'viewer'): ?>
+            <a href="upload.php" class="btn btn-accent btn-lg">
+                <i class="fas fa-plus me-2"></i>Upload Receipt
+            </a>
+            <?php endif; ?>
+            <?php if ($current_box['access_level'] === 'owner'): ?>
+            <button class="btn btn-outline-primary btn-lg" data-bs-toggle="modal" data-bs-target="#shareBoxModal">
+                <i class="fas fa-share me-2"></i>Share
+            </button>
+            <?php endif; ?>
+        </div>
     </div>
 </div>
 
@@ -202,13 +319,20 @@ include 'header.php';
     <div class="card-body">
         <div class="row align-items-center">
             <div class="col-md-8">
-                <h5 class="mb-1">
-                    <i class="fas fa-box text-primary me-2"></i>
-                    Current Box: <strong><?php echo htmlspecialchars($current_box['name']); ?></strong>
-                </h5>
-                <?php if ($current_box['description']): ?>
-                <p class="text-muted mb-0"><?php echo htmlspecialchars($current_box['description']); ?></p>
-                <?php endif; ?>
+                <div class="d-flex align-items-center">
+                    <div class="me-3">
+                        <h5 class="mb-1">
+                            <i class="fas fa-box text-primary me-2"></i>
+                            <strong><?php echo htmlspecialchars($current_box['name']); ?></strong>
+                        </h5>
+                        <?php if ($current_box['description']): ?>
+                        <p class="text-muted mb-0"><?php echo htmlspecialchars($current_box['description']); ?></p>
+                        <?php endif; ?>
+                    </div>
+                    <span class="access-badge access-<?php echo $current_box['access_level']; ?>">
+                        <?php echo ucfirst($current_box['access_level']); ?>
+                    </span>
+                </div>
             </div>
             <div class="col-md-4 text-end">
                 <div class="dropdown">
@@ -221,7 +345,12 @@ include 'header.php';
                             <a class="dropdown-item <?php echo $box['id'] == $selected_box_id ? 'active' : ''; ?>" 
                                href="?box=<?php echo $box['id']; ?>">
                                 <div class="d-flex justify-content-between align-items-center">
-                                    <span><?php echo htmlspecialchars($box['name']); ?></span>
+                                    <div>
+                                        <span><?php echo htmlspecialchars($box['name']); ?></span>
+                                        <span class="access-badge access-<?php echo $box['access_level']; ?> ms-2">
+                                            <?php echo ucfirst($box['access_level']); ?>
+                                        </span>
+                                    </div>
                                     <small class="text-muted ms-2"><?php echo $box['receipt_count']; ?> receipts</small>
                                 </div>
                             </a>
@@ -379,9 +508,11 @@ include 'header.php';
             <i class="fas fa-times me-1"></i>Clear Filters
         </a>
         <?php endif; ?>
+        <?php if ($current_box['access_level'] !== 'viewer'): ?>
         <a href="upload.php" class="btn btn-accent">
             <i class="fas fa-plus me-1"></i>Upload Receipt
         </a>
+        <?php endif; ?>
     </div>
     <?php else: ?>
     <div class="card-body p-0">
@@ -400,7 +531,7 @@ include 'header.php';
                                 <img src="<?php echo htmlspecialchars($receipt['file_path']); ?>" 
                                      class="receipt-thumbnail" 
                                      alt="Receipt thumbnail"
-                                     onclick="viewReceipt('<?php echo htmlspecialchars($receipt['file_path']); ?>', '<?php echo htmlspecialchars($receipt['title']); ?>')">
+                                     onclick="openAdvancedModal('<?php echo htmlspecialchars($receipt['file_path']); ?>', '<?php echo htmlspecialchars($receipt['title']); ?>')">
                                 <?php else: ?>
                                 <div class="receipt-thumbnail d-flex align-items-center justify-content-center bg-light">
                                     <i class="fas fa-file-pdf fa-lg text-danger"></i>
@@ -449,6 +580,7 @@ include 'header.php';
                                 <?php echo $receipt['is_logged'] ? 'Logged' : 'Pending'; ?>
                             </span>
                         </div>
+                        <?php if ($current_box['access_level'] !== 'viewer'): ?>
                         <div class="btn-group btn-group-sm">
                             <?php if (!$receipt['is_logged']): ?>
                             <button class="btn btn-success" onclick="toggleStatus(<?php echo $receipt['id']; ?>, 1)" 
@@ -472,6 +604,12 @@ include 'header.php';
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
+                        <?php else: ?>
+                        <a href="<?php echo htmlspecialchars($receipt['file_path']); ?>" 
+                           class="btn btn-outline-primary btn-sm" download title="Download">
+                            <i class="fas fa-download"></i>
+                        </a>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -481,22 +619,217 @@ include 'header.php';
     <?php endif; ?>
 </div>
 
-<!-- Receipt Preview Modal -->
-<div class="modal fade" id="receiptModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
+<!-- Advanced Image Modal -->
+<div class="modal fade advanced-modal" id="advancedImageModal" tabindex="-1">
+    <div class="modal-dialog modal-fullscreen">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="receiptModalTitle">Receipt Preview</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title text-white" id="advancedModalTitle">Receipt Preview</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body text-center">
-                <img id="receiptModalImage" src="" alt="Receipt" class="img-fluid" style="max-height: 70vh;">
+            <div class="modal-body">
+                <div class="zoom-controls">
+                    <button type="button" class="btn" onclick="zoomIn()" title="Zoom In">
+                        <i class="fas fa-search-plus"></i>
+                    </button>
+                    <button type="button" class="btn" onclick="zoomOut()" title="Zoom Out">
+                        <i class="fas fa-search-minus"></i>
+                    </button>
+                    <button type="button" class="btn" onclick="resetZoom()" title="Reset">
+                        <i class="fas fa-compress-arrows-alt"></i>
+                    </button>
+                    <button type="button" class="btn" onclick="rotateImage()" title="Rotate">
+                        <i class="fas fa-redo"></i>
+                    </button>
+                </div>
+                <div class="image-container" id="imageContainer">
+                    <img id="advancedModalImage" src="" alt="Receipt" class="zoomable-image">
+                </div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Share Box Modal -->
+<?php if ($current_box['access_level'] === 'owner'): ?>
+<div class="modal fade" id="shareBoxModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Share Receipt Box</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <h6>Share: <?php echo htmlspecialchars($current_box['name']); ?></h6>
+                
+                <!-- Invite Form -->
+                <form id="inviteForm" class="mb-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Email Address</label>
+                            <input type="email" class="form-control" name="email" required 
+                                   placeholder="user@example.com">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Permission</label>
+                            <select class="form-select" name="can_edit">
+                                <option value="0">View Only</option>
+                                <option value="1">Can Edit</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+                
+                <!-- Current Shares -->
+                <div id="currentShares">
+                    <h6>Current Access</h6>
+                    <div id="sharesList"></div>
+                </div>
+                
+                <!-- Pending Invitations -->
+                <div id="pendingInvitations" class="mt-3">
+                    <h6>Pending Invitations</h6>
+                    <div id="invitationsList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <script>
+// Advanced Image Modal Variables
+let currentZoom = 1;
+let currentRotation = 0;
+let isDragging = false;
+let startX, startY, translateX = 0, translateY = 0;
+let modal, modalImage, imageContainer;
+
+// Initialize modal elements
+document.addEventListener('DOMContentLoaded', function() {
+    modal = document.getElementById('advancedImageModal');
+    modalImage = document.getElementById('advancedModalImage');
+    imageContainer = document.getElementById('imageContainer');
+    
+    // Reset on modal close
+    modal.addEventListener('hidden.bs.modal', function() {
+        resetZoom();
+        currentRotation = 0;
+        updateImageTransform();
+    });
+    
+    setupImageDragging();
+    loadCurrentShares();
+});
+
+// Advanced Image Modal Functions
+function openAdvancedModal(imagePath, title) {
+    document.getElementById('advancedModalImage').src = imagePath;
+    document.getElementById('advancedModalTitle').textContent = title;
+    
+    // Reset zoom and position
+    currentZoom = 1;
+    currentRotation = 0;
+    translateX = 0;
+    translateY = 0;
+    updateImageTransform();
+    
+    new bootstrap.Modal(document.getElementById('advancedImageModal')).show();
+}
+
+function zoomIn() {
+    currentZoom = Math.min(currentZoom * 1.3, 5);
+    updateImageTransform();
+}
+
+function zoomOut() {
+    currentZoom = Math.max(currentZoom / 1.3, 0.3);
+    updateImageTransform();
+}
+
+function resetZoom() {
+    currentZoom = 1;
+    translateX = 0;
+    translateY = 0;
+    updateImageTransform();
+}
+
+function rotateImage() {
+    currentRotation = (currentRotation + 90) % 360;
+    updateImageTransform();
+}
+
+function updateImageTransform() {
+    if (modalImage) {
+        modalImage.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentZoom}) rotate(${currentRotation}deg)`;
+    }
+}
+
+// Image Dragging Setup
+function setupImageDragging() {
+    if (!modalImage) return;
+    
+    modalImage.addEventListener('mousedown', startDragging);
+    modalImage.addEventListener('touchstart', startDragging);
+    
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('touchmove', drag);
+    
+    document.addEventListener('mouseup', stopDragging);
+    document.addEventListener('touchend', stopDragging);
+    
+    // Wheel zoom
+    modalImage.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        if (e.deltaY < 0) {
+            zoomIn();
+        } else {
+            zoomOut();
+        }
+    });
+}
+
+function startDragging(e) {
+    if (currentZoom <= 1) return;
+    
+    isDragging = true;
+    modalImage.style.cursor = 'grabbing';
+    
+    const clientX = e.clientX || e.touches[0].clientX;
+    const clientY = e.clientY || e.touches[0].clientY;
+    
+    startX = clientX - translateX;
+    startY = clientY - translateY;
+    
+    e.preventDefault();
+}
+
+function drag(e) {
+    if (!isDragging) return;
+    
+    const clientX = e.clientX || e.touches[0].clientX;
+    const clientY = e.clientY || e.touches[0].clientY;
+    
+    translateX = clientX - startX;
+    translateY = clientY - startY;
+    
+    updateImageTransform();
+    e.preventDefault();
+}
+
+function stopDragging() {
+    isDragging = false;
+    if (modalImage) {
+        modalImage.style.cursor = currentZoom > 1 ? 'grab' : 'default';
+    }
+}
+
+// Receipt Actions
 function toggleStatus(receiptId, status) {
     fetch('actions.php', {
         method: 'POST',
@@ -543,11 +876,132 @@ function deleteReceipt(receiptId) {
     }
 }
 
-function viewReceipt(imagePath, title) {
-    document.getElementById('receiptModalImage').src = imagePath;
-    document.getElementById('receiptModalTitle').textContent = title;
-    new bootstrap.Modal(document.getElementById('receiptModal')).show();
+// Box Sharing Functions
+<?php if ($current_box['access_level'] === 'owner'): ?>
+document.getElementById('inviteForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    formData.append('action', 'invite_user');
+    formData.append('box_id', <?php echo $selected_box_id; ?>);
+    
+    fetch('actions.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            this.reset();
+            loadCurrentShares();
+            alert('Invitation sent successfully!');
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred');
+    });
+});
+
+function loadCurrentShares() {
+    fetch(`actions.php?action=get_box_shares&box_id=<?php echo $selected_box_id; ?>`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayShares(data.shares);
+            displayInvitations(data.invitations);
+        }
+    })
+    .catch(error => console.error('Error loading shares:', error));
 }
+
+function displayShares(shares) {
+    const sharesList = document.getElementById('sharesList');
+    if (!shares.length) {
+        sharesList.innerHTML = '<p class="text-muted">No one else has access to this box.</p>';
+        return;
+    }
+    
+    sharesList.innerHTML = shares.map(share => `
+        <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-light rounded">
+            <div>
+                <strong>${share.username}</strong>
+                <span class="access-badge access-${share.can_edit ? 'editor' : 'viewer'} ms-2">
+                    ${share.can_edit ? 'Editor' : 'Viewer'}
+                </span>
+            </div>
+            <button class="btn btn-sm btn-outline-danger" onclick="removeShare(${share.user_id})">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `).join('');
+}
+
+function displayInvitations(invitations) {
+    const invitationsList = document.getElementById('invitationsList');
+    if (!invitations.length) {
+        invitationsList.innerHTML = '<p class="text-muted">No pending invitations.</p>';
+        return;
+    }
+    
+    invitationsList.innerHTML = invitations.map(invitation => `
+        <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-warning bg-opacity-10 rounded">
+            <div>
+                <strong>${invitation.email}</strong>
+                <span class="access-badge access-${invitation.can_edit ? 'editor' : 'viewer'} ms-2">
+                    ${invitation.can_edit ? 'Editor' : 'Viewer'}
+                </span>
+                <br><small class="text-muted">Expires: ${new Date(invitation.expires_at).toLocaleDateString()}</small>
+            </div>
+            <button class="btn btn-sm btn-outline-danger" onclick="cancelInvitation('${invitation.email}')">
+                Cancel
+            </button>
+        </div>
+    `).join('');
+}
+
+function removeShare(userId) {
+    if (confirm('Are you sure you want to remove this user\'s access?')) {
+        fetch('actions.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `action=remove_share&box_id=<?php echo $selected_box_id; ?>&user_id=${userId}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadCurrentShares();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        });
+    }
+}
+
+function cancelInvitation(email) {
+    if (confirm('Are you sure you want to cancel this invitation?')) {
+        fetch('actions.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `action=cancel_invitation&box_id=<?php echo $selected_box_id; ?>&email=${encodeURIComponent(email)}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadCurrentShares();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        });
+    }
+}
+<?php endif; ?>
 </script>
 
 <?php include 'footer.php'; ?>
