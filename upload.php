@@ -5,9 +5,22 @@ require_login();
 
 $user_id = get_current_user_id();
 
-// Get user's boxes
-$stmt = $pdo->prepare("SELECT id, name FROM receipt_boxes WHERE owner_id = ? ORDER BY name");
-$stmt->execute([$user_id]);
+// Get user's boxes (owned + shared with edit access)
+$stmt = $pdo->prepare("
+    SELECT rb.id, rb.name, 'owner' as access_level, rb.owner_id
+    FROM receipt_boxes rb 
+    WHERE rb.owner_id = ?
+    
+    UNION ALL
+    
+    SELECT rb.id, rb.name, 'editor' as access_level, rb.owner_id
+    FROM receipt_boxes rb
+    INNER JOIN box_shares bs ON rb.id = bs.box_id
+    WHERE bs.user_id = ? AND bs.can_edit = 1
+    
+    ORDER BY access_level = 'owner' DESC, name ASC
+");
+$stmt->execute([$user_id, $user_id]);
 $boxes = $stmt->fetchAll();
 
 if (empty($boxes)) {
@@ -27,11 +40,21 @@ if ($_POST && isset($_FILES['receipt_file'])) {
     $category = clean_input($_POST['category'] ?? '');
     $vendor = clean_input($_POST['vendor'] ?? '');
     
-    // Validate box access
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM receipt_boxes WHERE id = ? AND owner_id = ?");
-    $stmt->execute([$box_id, $user_id]);
-    if ($stmt->fetchColumn() == 0) {
-        $error = 'Invalid receipt box selected.';
+    // Validate box access (owner or editor)
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as has_access FROM (
+            SELECT rb.id FROM receipt_boxes rb WHERE rb.id = ? AND rb.owner_id = ?
+            UNION
+            SELECT rb.id FROM receipt_boxes rb 
+            INNER JOIN box_shares bs ON rb.id = bs.box_id 
+            WHERE rb.id = ? AND bs.user_id = ? AND bs.can_edit = 1
+        ) as accessible_boxes
+    ");
+    $stmt->execute([$box_id, $user_id, $box_id, $user_id]);
+    $has_access = $stmt->fetchColumn();
+    
+    if ($has_access == 0) {
+        $error = 'You do not have permission to upload to this receipt box.';
     } elseif (!isset($_FILES['receipt_file']) || $_FILES['receipt_file']['error'] !== UPLOAD_ERR_OK) {
         $error = 'Please select a file to upload.';
     } else {
@@ -212,9 +235,17 @@ include 'header.php';
                         <label class="form-label">Receipt Box *</label>
                         <select class="form-select" name="box_id" required>
                             <?php foreach ($boxes as $box): ?>
+                            <?php 
+                                $label = htmlspecialchars($box['name']);
+                                if ($box['access_level'] === 'editor') {
+                                    $label .= ' (shared - can edit)';
+                                } elseif ($box['access_level'] === 'owner') {
+                                    $label .= ' (owned by you)';
+                                }
+                            ?>
                             <option value="<?php echo $box['id']; ?>" 
                                     <?php echo ($_POST['box_id'] ?? '') == $box['id'] ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($box['name']); ?>
+                                <?php echo $label; ?>
                             </option>
                             <?php endforeach; ?>
                         </select>
