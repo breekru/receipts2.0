@@ -1,156 +1,174 @@
 <script>
-// Enhanced Mobile-Friendly Upload with Drag & Drop
-const dropZone = document.getElementById('uploadDropZone');
-const fileInput = document.getElementById('receiptFile');
-const uploadContent = document.getElementById('uploadContent');
-const uploadPreview = document.getElementById('uploadPreview');
-const previewImage = document.getElementById('previewImage');
-const previewFilename = document.getElementById('previewFilename');
-const previewFilesize = document.getElementById('previewFilesize');
+// Wait for DOM to be fully loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Enhanced Mobile-Friendly Upload with Drag & Drop
+    const dropZone = document.getElementById('uploadDropZone');
+    const fileInput = document.getElementById('receiptFile');
+    const uploadContent = document.getElementById('uploadContent');
+    const uploadPreview = document.getElementById('uploadPreview');
+    const previewImage = document.getElementById('previewImage');
+    const previewFilename = document.getElementById('previewFilename');
+    const previewFilesize = document.getElementById('previewFilesize');
 
-// Drag and drop functionality
-['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-    dropZone.addEventListener(eventName, preventDefaults, false);
-    document.body.addEventListener(eventName, preventDefaults, false);
-});
-
-['dragenter', 'dragover'].forEach(eventName => {
-    dropZone.addEventListener(eventName, highlight, false);
-});
-
-['dragleave', 'drop'].forEach(eventName => {
-    dropZone.addEventListener(eventName, unhighlight, false);
-});
-
-function preventDefaults(e) {
-    e.preventDefault();
-    e.stopPropagation();
-}
-
-function highlight(e) {
-    dropZone.classList.add('dragover');
-}
-
-function unhighlight(e) {
-    dropZone.classList.remove('dragover');
-}
-
-// Handle file drop
-dropZone.addEventListener('drop', handleDrop, false);
-dropZone.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', handleFileSelect);
-
-function handleDrop(e) {
-    const dt = e.dataTransfer;
-    const files = dt.files;
-    handleFiles(files);
-}
-
-function handleFileSelect(e) {
-    const files = e.target.files;
-    handleFiles(files);
-}
-
-function handleFiles(files) {
-    if (files.length > 0) {
-        const file = files[0];
-        if (validateFile(file)) {
-            displayPreview(file);
-        }
-    }
-}
-
-function validateFile(file) {
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'application/pdf'];
-    const maxSize = 10 * 1024 * 1024; // 10MB
-    
-    if (!allowedTypes.includes(file.type)) {
-        alert('Please select a valid image or PDF file.');
-        return false;
-    }
-    
-    if (file.size > maxSize) {
-        alert('File size must be less than 10MB.');
-        return false;
-    }
-    
-    return true;
-}
-
-function displayPreview(file) {
-    uploadContent.classList.add('d-none');
-    uploadPreview.classList.remove('d-none');
-    
-    previewFilename.textContent = file.name;
-    previewFilesize.textContent = formatFileSize(file.size);
-    
-    if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            previewImage.src = e.target.result;
-            previewImage.classList.remove('d-none');
-        };
-        reader.readAsDataURL(file);
-    } else {
-        previewImage.classList.add('d-none');
-    }
-}
-
-function removeFile() {
-    fileInput.value = '';
-    uploadContent.classList.remove('d-none');
-    uploadPreview.classList.add('d-none');
-    previewImage.src = '';
-}
-
-function formatFileSize(bytes) {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
-// Mobile camera capture
-function captureFromCamera() {
-    fileInput.accept = 'image/*';
-    fileInput.capture = 'environment';
-    fileInput.click();
-}
-
-// Auto-fill title based on vendor and category
-document.querySelector('input[name="vendor"]').addEventListener('blur', updateTitle);
-document.querySelector('input[name="category"]').addEventListener('blur', updateTitle);
-
-function updateTitle() {
-    const vendor = document.querySelector('input[name="vendor"]').value;
-    const category = document.querySelector('input[name="category"]').value;
-    const titleField = document.querySelector('input[name="title"]');
-    
-    if (!titleField.value && (vendor || category)) {
-        let title = '';
-        if (category && vendor) {
-            title = `${category} - ${vendor}`;
-        } else if (vendor) {
-            title = vendor;
-        } else if (category) {
-            title = category;
-        }
-        titleField.value = title;
-    }
-}
-
-// Form submission with progress
-document.querySelector('form').addEventListener('submit', function(e) {
-    if (!fileInput.files.length) {
-        e.preventDefault();
-        alert('Please select a file to upload.');
+    // Check if elements exist before adding event listeners
+    if (!dropZone || !fileInput) {
+        console.error('Upload elements not found');
         return;
     }
+
+    // Drag and drop functionality
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+        document.body.addEventListener(eventName, preventDefaults, false);
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, highlight, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, unhighlight, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    function highlight(e) {
+        dropZone.classList.add('dragover');
+    }
+
+    function unhighlight(e) {
+        dropZone.classList.remove('dragover');
+    }
+
+    // Handle file drop
+    dropZone.addEventListener('drop', handleDrop, false);
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', handleFileSelect);
+
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        handleFiles(files);
+    }
+
+    function handleFileSelect(e) {
+        const files = e.target.files;
+        handleFiles(files);
+    }
+
+    function handleFiles(files) {
+        if (files.length > 0) {
+            const file = files[0];
+            if (validateFile(file)) {
+                displayPreview(file);
+            }
+        }
+    }
+
+    function validateFile(file) {
+        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'application/pdf'];
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        
+        if (!allowedTypes.includes(file.type)) {
+            alert('Please select a valid image or PDF file.');
+            return false;
+        }
+        
+        if (file.size > maxSize) {
+            alert('File size must be less than 10MB.');
+            return false;
+        }
+        
+        return true;
+    }
+
+    function displayPreview(file) {
+        if (uploadContent) uploadContent.classList.add('d-none');
+        if (uploadPreview) uploadPreview.classList.remove('d-none');
+        
+        if (previewFilename) previewFilename.textContent = file.name;
+        if (previewFilesize) previewFilesize.textContent = formatFileSize(file.size);
+        
+        if (file.type.startsWith('image/') && previewImage) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                previewImage.src = e.target.result;
+                previewImage.classList.remove('d-none');
+            };
+            reader.readAsDataURL(file);
+        } else if (previewImage) {
+            previewImage.classList.add('d-none');
+        }
+    }
+
+    // Make removeFile function global so it can be called from onclick
+    window.removeFile = function() {
+        fileInput.value = '';
+        if (uploadContent) uploadContent.classList.remove('d-none');
+        if (uploadPreview) uploadPreview.classList.add('d-none');
+        if (previewImage) previewImage.src = '';
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // Mobile camera capture - make global
+    window.captureFromCamera = function() {
+        fileInput.accept = 'image/*';
+        fileInput.capture = 'environment';
+        fileInput.click();
+    }
+
+    // Auto-fill title based on vendor and category
+    const vendorInput = document.querySelector('input[name="vendor"]');
+    const categoryInput = document.querySelector('input[name="category"]');
     
-    const submitBtn = document.querySelector('button[type="submit"]');
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
+    if (vendorInput) vendorInput.addEventListener('blur', updateTitle);
+    if (categoryInput) categoryInput.addEventListener('blur', updateTitle);
+
+    function updateTitle() {
+        const vendor = document.querySelector('input[name="vendor"]')?.value || '';
+        const category = document.querySelector('input[name="category"]')?.value || '';
+        const titleField = document.querySelector('input[name="title"]');
+        
+        if (titleField && !titleField.value && (vendor || category)) {
+            let title = '';
+            if (category && vendor) {
+                title = `${category} - ${vendor}`;
+            } else if (vendor) {
+                title = vendor;
+            } else if (category) {
+                title = category;
+            }
+            titleField.value = title;
+        }
+    }
+
+    // Form submission with progress
+    const form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            if (!fileInput.files.length) {
+                e.preventDefault();
+                alert('Please select a file to upload.');
+                return;
+            }
+            
+            const submitBtn = document.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
+            }
+        });
+    }
 });
 </script>
 
