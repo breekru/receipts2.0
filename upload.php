@@ -252,7 +252,7 @@ include 'header.php';
                         </div>
                         
                         <input type="file" class="d-none" name="receipt_file" id="receiptFile"
-                               accept="image/*,.pdf" required>
+                               accept="image/*,.pdf">
                         <div class="form-text">JPG, PNG, GIF, or PDF files only. Max 10MB.</div>
                     </div>
                     
@@ -390,6 +390,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const file = files[0];
             if (validateFile(file)) {
                 displayPreview(file);
+                // Clear any previous error styling
+                dropZone.style.borderColor = '';
             }
         }
     }
@@ -436,6 +438,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (uploadContent) uploadContent.classList.remove('d-none');
         if (uploadPreview) uploadPreview.classList.add('d-none');
         if (previewImage) previewImage.src = '';
+        // Clear any error styling
+        dropZone.style.borderColor = '';
     }
 
     function formatFileSize(bytes) {
@@ -478,14 +482,21 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Form submission with progress
+    // Form submission with progress and validation
     const form = document.querySelector('form');
     if (form) {
         form.addEventListener('submit', function(e) {
+            // Check if file is selected
             if (!fileInput.files.length) {
                 e.preventDefault();
                 alert('Please select a file to upload.');
-                return;
+                // Focus on the drop zone to help user understand where to upload
+                dropZone.scrollIntoView({ behavior: 'smooth' });
+                dropZone.style.borderColor = '#dc3545';
+                setTimeout(() => {
+                    dropZone.style.borderColor = '';
+                }, 3000);
+                return false;
             }
             
             const submitBtn = document.querySelector('button[type="submit"]');
