@@ -1,11 +1,9 @@
 // sw.js - Service Worker for LogIt PWA
-const CACHE_NAME = 'logit-v1.0.0';
+const CACHE_NAME = 'logit-v1.0.1';
 const urlsToCache = [
     '/',
-    '/dashboard.php',
-    '/upload.php',
     '/login.php',
-    '/boxes.php',
+    '/register.php',
     '/manifest.json',
     'https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css',
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
@@ -44,28 +42,58 @@ self.addEventListener('activate', (event) => {
     self.clients.claim();
 });
 
-// Fetch event
+// Fetch event - improved redirect handling
 self.addEventListener('fetch', (event) => {
+    // Skip non-GET requests and external resources
+    if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) {
+        return;
+    }
+    
     event.respondWith(
         caches.match(event.request)
-            .then((response) => {
-                // Return cache if available
-                if (response) {
-                    return response;
+            .then((cachedResponse) => {
+                // Return cached version if available
+                if (cachedResponse) {
+                    return cachedResponse;
                 }
                 
-                return fetch(event.request).then((response) => {
-                    // Check if valid response
-                    if (!response || response.status !== 200 || response.type !== 'basic') {
+                // Fetch from network with proper redirect handling
+                return fetch(event.request, {
+                    redirect: 'follow',
+                    credentials: 'same-origin'
+                }).then((response) => {
+                    // Check if we received a valid response
+                    if (!response || response.status !== 200) {
                         return response;
                     }
                     
-                    // Clone and cache for future use
+                    // Don't cache redirects or error responses
+                    if (response.type !== 'basic' && response.type !== 'cors') {
+                        return response;
+                    }
+                    
+                    // Don't cache PHP pages that require authentication
+                    const url = new URL(event.request.url);
+                    const restrictedPages = [
+                        '/dashboard.php',
+                        '/upload.php',
+                        '/boxes.php',
+                        '/actions.php'
+                    ];
+                    
+                    if (restrictedPages.some(page => url.pathname.includes(page))) {
+                        return response;
+                    }
+                    
+                    // Clone and cache for future use (only static resources)
                     const responseToCache = response.clone();
                     
                     caches.open(CACHE_NAME)
                         .then((cache) => {
                             cache.put(event.request, responseToCache);
+                        })
+                        .catch(() => {
+                            // Silently fail cache operations
                         });
                     
                     return response;
@@ -85,6 +113,7 @@ self.addEventListener('fetch', (event) => {
                                         padding: 2rem; 
                                         background: #f8f9fa;
                                         color: #343a40;
+                                        margin: 0;
                                     }
                                     .offline-container {
                                         max-width: 400px;
@@ -108,6 +137,11 @@ self.addEventListener('fetch', (event) => {
                                         text-decoration: none;
                                         display: inline-block;
                                         margin-top: 1rem;
+                                        cursor: pointer;
+                                        font-size: 1rem;
+                                    }
+                                    .btn:hover {
+                                        background: #e67e22;
                                     }
                                 </style>
                             </head>
@@ -117,6 +151,8 @@ self.addEventListener('fetch', (event) => {
                                     <h1>You're Offline</h1>
                                     <p>LogIt is currently offline. Please check your internet connection and try again.</p>
                                     <button class="btn" onclick="window.location.reload()">Try Again</button>
+                                    <br><br>
+                                    <a href="/" class="btn" style="background: #0d6efd;">Go to Home</a>
                                 </div>
                             </body>
                             </html>
@@ -124,6 +160,9 @@ self.addEventListener('fetch', (event) => {
                             headers: { 'Content-Type': 'text/html' }
                         });
                     }
+                    
+                    // For other resources, just fail
+                    return new Response('Network error', { status: 408 });
                 });
             })
     );
@@ -144,7 +183,10 @@ async function processOfflineUploads() {
         
         for (const request of requests) {
             try {
-                const response = await fetch(request);
+                const response = await fetch(request, {
+                    redirect: 'follow',
+                    credentials: 'same-origin'
+                });
                 if (response.ok) {
                     await cache.delete(request);
                     console.log('Offline upload processed:', request.url);
@@ -158,7 +200,7 @@ async function processOfflineUploads() {
     }
 }
 
-// Push notifications (for future features)
+// Push notifications
 self.addEventListener('push', (event) => {
     const options = {
         body: event.data ? event.data.text() : 'New notification from LogIt',
@@ -193,7 +235,7 @@ self.addEventListener('notificationclick', (event) => {
     
     if (event.action === 'view') {
         event.waitUntil(
-            clients.openWindow('/dashboard.php')
+            clients.openWindow('/')
         );
     }
 });
@@ -203,4 +245,14 @@ self.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'SKIP_WAITING') {
         self.skipWaiting();
     }
+});
+
+// Handle failed requests more gracefully
+self.addEventListener('error', (event) => {
+    console.log('Service Worker error:', event.error);
+});
+
+self.addEventListener('unhandledrejection', (event) => {
+    console.log('Service Worker unhandled rejection:', event.reason);
+    event.preventDefault();
 });

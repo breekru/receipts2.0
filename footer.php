@@ -31,19 +31,75 @@
         </div>
     </div>
     
+    <!-- Service Worker Update Banner -->
+    <div id="updateBanner" class="position-fixed bottom-0 start-0 end-0 bg-success text-white p-3 d-none" style="z-index: 9999;">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>Update Available</strong>
+                    <small class="d-block">A new version of LogIt is ready</small>
+                </div>
+                <div>
+                    <button id="updateBtn" class="btn btn-light btn-sm me-2">Update</button>
+                    <button id="dismissUpdateBtn" class="btn btn-outline-light btn-sm">&times;</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- PWA and Service Worker Registration -->
     <script>
-        // Service Worker Registration
+        // Service Worker Registration with update handling
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('sw.js')
                     .then((registration) => {
                         console.log('SW registered: ', registration);
+                        
+                        // Check for updates
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // New version available
+                                    showUpdateBanner(newWorker);
+                                }
+                            });
+                        });
+                        
+                        // Check for update on focus
+                        window.addEventListener('focus', () => {
+                            registration.update();
+                        });
                     })
                     .catch((registrationError) => {
                         console.log('SW registration failed: ', registrationError);
                     });
             });
+        }
+
+        // Update banner functionality
+        function showUpdateBanner(newWorker) {
+            const updateBanner = document.getElementById('updateBanner');
+            const updateBtn = document.getElementById('updateBtn');
+            const dismissUpdateBtn = document.getElementById('dismissUpdateBtn');
+            
+            if (updateBanner) {
+                updateBanner.classList.remove('d-none');
+                
+                if (updateBtn) {
+                    updateBtn.addEventListener('click', () => {
+                        newWorker.postMessage({ type: 'SKIP_WAITING' });
+                        window.location.reload();
+                    });
+                }
+                
+                if (dismissUpdateBtn) {
+                    dismissUpdateBtn.addEventListener('click', () => {
+                        updateBanner.classList.add('d-none');
+                    });
+                }
+            }
         }
 
         // PWA Install functionality
@@ -67,7 +123,9 @@
                     const { outcome } = await deferredPrompt.userChoice;
                     console.log(`User ${outcome} the install prompt`);
                     deferredPrompt = null;
-                    installBanner.classList.add('d-none');
+                    if (installBanner) {
+                        installBanner.classList.add('d-none');
+                    }
                 }
             });
         }
@@ -79,6 +137,13 @@
                 }
             });
         }
+
+        // Handle service worker messages
+        navigator.serviceWorker.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'SW_UPDATED') {
+                showUpdateBanner();
+            }
+        });
     </script>
     
     <!-- Simple notification system -->
