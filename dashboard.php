@@ -5,24 +5,33 @@ require_login();
 
 $user_id = get_current_user_id();
 
-// Get user's boxes (owned + shared)
+// Get user's boxes (owned + shared) - FIXED VERSION
 $stmt = $pdo->prepare("
-    (SELECT rb.*, 'owner' as access_level, COUNT(r.id) as receipt_count, COALESCE(SUM(r.amount), 0) as total_amount
-     FROM receipt_boxes rb 
-     LEFT JOIN receipts r ON rb.id = r.box_id 
-     WHERE rb.owner_id = ? 
-     GROUP BY rb.id)
-    UNION
-    (SELECT rb.*, IF(bs.can_edit, 'editor', 'viewer') as access_level, COUNT(r.id) as receipt_count, COALESCE(SUM(r.amount), 0) as total_amount
-     FROM receipt_boxes rb
-     JOIN box_shares bs ON rb.id = bs.box_id
-     LEFT JOIN receipts r ON rb.id = r.box_id 
-     WHERE bs.user_id = ?
-     GROUP BY rb.id)
-    ORDER BY access_level = 'owner' DESC, name
+    SELECT rb.*, 'owner' as access_level, COUNT(r.id) as receipt_count, COALESCE(SUM(r.amount), 0) as total_amount
+    FROM receipt_boxes rb 
+    LEFT JOIN receipts r ON rb.id = r.box_id 
+    WHERE rb.owner_id = ? 
+    GROUP BY rb.id, rb.name, rb.description, rb.owner_id, rb.created_at
+    
+    UNION ALL
+    
+    SELECT rb.*, IF(bs.can_edit = 1, 'editor', 'viewer') as access_level, COUNT(r.id) as receipt_count, COALESCE(SUM(r.amount), 0) as total_amount
+    FROM receipt_boxes rb
+    INNER JOIN box_shares bs ON rb.id = bs.box_id
+    LEFT JOIN receipts r ON rb.id = r.box_id 
+    WHERE bs.user_id = ?
+    GROUP BY rb.id, rb.name, rb.description, rb.owner_id, rb.created_at, bs.can_edit
+    
+    ORDER BY access_level = 'owner' DESC, name ASC
 ");
 $stmt->execute([$user_id, $user_id]);
 $boxes = $stmt->fetchAll();
+
+// Debug: Let's see what boxes we got
+echo "<!-- DEBUG: Found " . count($boxes) . " boxes -->";
+foreach ($boxes as $box) {
+    echo "<!-- DEBUG: Box ID: {$box['id']}, Name: {$box['name']}, Access: {$box['access_level']} -->";
+}
 
 // Get selected box
 $selected_box_id = $_GET['box'] ?? ($boxes[0]['id'] ?? null);
