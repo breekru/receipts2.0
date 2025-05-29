@@ -22,11 +22,6 @@ if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 
     }
 }
 
-// Update last activity time
-if (is_logged_in()) {
-    $_SESSION['last_activity'] = time();
-}
-
 // Database connection - update these with your actual values
 $host = 'localhost';
 $username = 'logit_user';
@@ -207,25 +202,29 @@ function handle_ajax_error($message, $code = 400) {
     }
 }
 
-// Check for suspicious activity
+// FIXED: Check for suspicious activity
 function check_security() {
     // Rate limiting - simple implementation
     $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
     $current_time = time();
     
-    // Clean up old entries (older than 1 hour)
+    // Initialize rate limit array if not exists
     if (!isset($_SESSION['rate_limit'])) {
         $_SESSION['rate_limit'] = [];
     }
     
-    $_SESSION['rate_limit'] = array_filter($_SESSION['rate_limit'], function($timestamp) use ($current_time) {
-        return ($current_time - $timestamp) < 3600; // 1 hour
+    // Clean up old entries (older than 1 hour) - FIXED VERSION
+    $_SESSION['rate_limit'] = array_filter($_SESSION['rate_limit'], function($entry) use ($current_time) {
+        return is_array($entry) && isset($entry['time']) && ($current_time - $entry['time']) < 3600;
     });
     
-    // Count requests from this IP in the last hour
-    $request_count = count(array_filter($_SESSION['rate_limit'], function($entry) use ($ip) {
-        return isset($entry['ip']) && $entry['ip'] === $ip;
-    }));
+    // Count requests from this IP in the last hour - FIXED VERSION
+    $request_count = 0;
+    foreach ($_SESSION['rate_limit'] as $entry) {
+        if (is_array($entry) && isset($entry['ip']) && $entry['ip'] === $ip) {
+            $request_count++;
+        }
+    }
     
     // Allow max 1000 requests per hour per IP
     if ($request_count > 1000) {
@@ -235,6 +234,16 @@ function check_security() {
     
     // Log this request
     $_SESSION['rate_limit'][] = ['ip' => $ip, 'time' => $current_time];
+    
+    // Limit the size of the rate limit array to prevent memory issues
+    if (count($_SESSION['rate_limit']) > 2000) {
+        $_SESSION['rate_limit'] = array_slice($_SESSION['rate_limit'], -1000);
+    }
+}
+
+// Update last activity time - MOVED AFTER FUNCTION DEFINITIONS
+if (is_logged_in()) {
+    $_SESSION['last_activity'] = time();
 }
 
 // Call security check for non-static requests
