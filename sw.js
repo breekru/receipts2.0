@@ -1,7 +1,8 @@
 // sw.js - Service Worker for LogIt PWA
-const CACHE_NAME = 'logit-v1.0.1';
+const CACHE_NAME = 'logit-v1.0.2';
 const urlsToCache = [
     '/',
+    '/index.php',
     '/login.php',
     '/register.php',
     '/manifest.json',
@@ -102,62 +103,212 @@ self.addEventListener('fetch', (event) => {
                     if (event.request.destination === 'document') {
                         return new Response(`
                             <!DOCTYPE html>
-                            <html>
+                            <html lang="en">
                             <head>
-                                <title>LogIt - Offline</title>
+                                <title>LogIt - You're Offline</title>
                                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                                <meta name="theme-color" content="#fd7e14">
                                 <style>
-                                    body { 
-                                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                                        text-align: center; 
-                                        padding: 2rem; 
-                                        background: #f8f9fa;
-                                        color: #343a40;
+                                    * {
+                                        box-sizing: border-box;
                                         margin: 0;
+                                        padding: 0;
+                                    }
+                                    body { 
+                                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                        color: white;
+                                        min-height: 100vh;
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        padding: 20px;
                                     }
                                     .offline-container {
                                         max-width: 400px;
-                                        margin: 2rem auto;
-                                        padding: 2rem;
-                                        background: white;
-                                        border-radius: 12px;
-                                        box-shadow: 0 2px 15px rgba(0,0,0,0.1);
+                                        text-align: center;
+                                        background: rgba(255, 255, 255, 0.1);
+                                        backdrop-filter: blur(20px);
+                                        border-radius: 20px;
+                                        padding: 3rem 2rem;
+                                        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+                                        border: 1px solid rgba(255, 255, 255, 0.2);
                                     }
                                     .offline-icon { 
                                         font-size: 4rem; 
-                                        color: #fd7e14; 
-                                        margin-bottom: 1rem; 
+                                        margin-bottom: 1.5rem;
+                                        opacity: 0.9;
+                                    }
+                                    h1 {
+                                        font-size: 2rem;
+                                        font-weight: 600;
+                                        margin-bottom: 1rem;
+                                        color: white;
+                                    }
+                                    p {
+                                        font-size: 1.1rem;
+                                        margin-bottom: 2rem;
+                                        color: rgba(255, 255, 255, 0.9);
+                                        line-height: 1.6;
                                     }
                                     .btn {
-                                        background: #fd7e14;
+                                        background: rgba(255, 255, 255, 0.2);
                                         color: white;
-                                        padding: 0.75rem 1.5rem;
-                                        border: none;
-                                        border-radius: 8px;
+                                        padding: 0.75rem 2rem;
+                                        border: 2px solid rgba(255, 255, 255, 0.3);
+                                        border-radius: 25px;
                                         text-decoration: none;
                                         display: inline-block;
-                                        margin-top: 1rem;
+                                        margin: 0.5rem;
                                         cursor: pointer;
                                         font-size: 1rem;
+                                        font-weight: 500;
+                                        transition: all 0.3s ease;
+                                        backdrop-filter: blur(10px);
                                     }
                                     .btn:hover {
+                                        background: rgba(255, 255, 255, 0.3);
+                                        border-color: rgba(255, 255, 255, 0.5);
+                                        transform: translateY(-2px);
+                                        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+                                    }
+                                    .btn-primary {
+                                        background: #fd7e14;
+                                        border-color: #fd7e14;
+                                    }
+                                    .btn-primary:hover {
                                         background: #e67e22;
+                                        border-color: #e67e22;
+                                    }
+                                    .connection-status {
+                                        margin-top: 2rem;
+                                        padding: 1rem;
+                                        background: rgba(255, 255, 255, 0.1);
+                                        border-radius: 10px;
+                                        font-size: 0.9rem;
+                                    }
+                                    .status-indicator {
+                                        display: inline-block;
+                                        width: 10px;
+                                        height: 10px;
+                                        border-radius: 50%;
+                                        background: #dc3545;
+                                        margin-right: 0.5rem;
+                                        animation: pulse 2s infinite;
+                                    }
+                                    @keyframes pulse {
+                                        0% { opacity: 1; }
+                                        50% { opacity: 0.5; }
+                                        100% { opacity: 1; }
+                                    }
+                                    .logo {
+                                        font-size: 1.5rem;
+                                        font-weight: 700;
+                                        margin-bottom: 2rem;
+                                        color: #fd7e14;
+                                    }
+                                    
+                                    @media (max-width: 480px) {
+                                        .offline-container {
+                                            padding: 2rem 1.5rem;
+                                        }
+                                        h1 {
+                                            font-size: 1.75rem;
+                                        }
+                                        .offline-icon {
+                                            font-size: 3rem;
+                                        }
+                                        .btn {
+                                            padding: 0.75rem 1.5rem;
+                                            font-size: 0.9rem;
+                                        }
                                     }
                                 </style>
                             </head>
                             <body>
                                 <div class="offline-container">
-                                    <div class="offline-icon">📱</div>
+                                    <div class="logo">📱 LogIt</div>
+                                    <div class="offline-icon">🌐</div>
                                     <h1>You're Offline</h1>
-                                    <p>LogIt is currently offline. Please check your internet connection and try again.</p>
-                                    <button class="btn" onclick="window.location.reload()">Try Again</button>
-                                    <br><br>
-                                    <a href="/" class="btn" style="background: #0d6efd;">Go to Home</a>
+                                    <p>It looks like you're not connected to the internet. LogIt needs an internet connection to sync your receipts and access your account.</p>
+                                    
+                                    <button type="button" class="btn btn-primary" onclick="retryConnection()">
+                                        Try Again
+                                    </button>
+                                    <a href="/" class="btn">
+                                        Go to Home
+                                    </a>
+                                    
+                                    <div class="connection-status">
+                                        <span class="status-indicator" id="statusIndicator"></span>
+                                        <span id="statusText">Checking connection...</span>
+                                    </div>
                                 </div>
+                                
+                                <script>
+                                    let isOnline = navigator.onLine;
+                                    
+                                    function updateConnectionStatus() {
+                                        const indicator = document.getElementById('statusIndicator');
+                                        const statusText = document.getElementById('statusText');
+                                        
+                                        if (navigator.onLine) {
+                                            indicator.style.background = '#28a745';
+                                            statusText.textContent = 'Connection restored! You can reload the page.';
+                                        } else {
+                                            indicator.style.background = '#dc3545';
+                                            statusText.textContent = 'No internet connection detected.';
+                                        }
+                                    }
+                                    
+                                    function retryConnection() {
+                                        const btn = event.target;
+                                        btn.innerHTML = 'Checking...';
+                                        btn.disabled = true;
+                                        
+                                        // Try to reload the page
+                                        setTimeout(() => {
+                                            window.location.reload();
+                                        }, 1000);
+                                    }
+                                    
+                                    // Listen for connection changes
+                                    window.addEventListener('online', () => {
+                                        updateConnectionStatus();
+                                        setTimeout(() => {
+                                            window.location.reload();
+                                        }, 1500);
+                                    });
+                                    
+                                    window.addEventListener('offline', updateConnectionStatus);
+                                    
+                                    // Initial status check
+                                    updateConnectionStatus();
+                                    
+                                    // Periodic connection check
+                                    setInterval(() => {
+                                        fetch('/', { method: 'HEAD', cache: 'no-cache' })
+                                            .then(() => {
+                                                if (!isOnline) {
+                                                    isOnline = true;
+                                                    updateConnectionStatus();
+                                                }
+                                            })
+                                            .catch(() => {
+                                                if (isOnline) {
+                                                    isOnline = false;
+                                                    updateConnectionStatus();
+                                                }
+                                            });
+                                    }, 5000);
+                                </script>
                             </body>
                             </html>
                         `, {
-                            headers: { 'Content-Type': 'text/html' }
+                            headers: { 
+                                'Content-Type': 'text/html',
+                                'Cache-Control': 'no-cache'
+                            }
                         });
                     }
                     

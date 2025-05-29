@@ -1,5 +1,5 @@
 <?php
-// dashboard.php - Enhanced dashboard with PWA, sharing, and advanced image modal
+// dashboard.php - Enhanced dashboard with edit functionality
 require_once 'config.php';
 require_login();
 
@@ -26,12 +26,6 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$user_id, $user_id]);
 $boxes = $stmt->fetchAll();
-
-// Debug: Let's see what boxes we got
-echo "<!-- DEBUG: Found " . count($boxes) . " boxes -->";
-foreach ($boxes as $box) {
-    echo "<!-- DEBUG: Box ID: {$box['id']}, Name: {$box['name']}, Access: {$box['access_level']} -->";
-}
 
 // Get selected box
 $selected_box_id = $_GET['box'] ?? ($boxes[0]['id'] ?? null);
@@ -297,25 +291,54 @@ include 'header.php';
     background: rgba(0, 0, 0, 0.9);
     color: white;
 }
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+    .page-header {
+        margin-bottom: 1rem;
+    }
+    
+    .stats-card .card-body {
+        padding: 1rem;
+    }
+    
+    .stats-number {
+        font-size: 1.5rem;
+    }
+    
+    .receipt-card .card-body {
+        padding: 1rem;
+    }
+    
+    .receipt-thumbnail {
+        width: 50px;
+        height: 50px;
+    }
+    
+    .btn-group-sm .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.8rem;
+    }
+}
 </style>
 
 <!-- Page Header -->
 <div class="page-header">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
+    <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <div class="mb-2 mb-md-0">
             <h1 class="display-6 fw-bold mb-2">
                 <i class="fas fa-tachometer-alt text-primary me-2"></i>Dashboard
             </h1>
             <p class="text-muted mb-0">Welcome back, <?php echo htmlspecialchars($_SESSION['username']); ?>!</p>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 flex-wrap">
             <?php if ($current_box['access_level'] !== 'viewer'): ?>
-            <a href="upload.php" class="btn btn-accent btn-lg">
+            <a href="upload.php" class="btn btn-accent">
                 <i class="fas fa-plus me-2"></i>Upload Receipt
             </a>
             <?php endif; ?>
             <?php if ($current_box['access_level'] === 'owner'): ?>
-            <button class="btn btn-outline-primary btn-lg" data-bs-toggle="modal" data-bs-target="#shareBoxModal">
+            <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#shareBoxModal">
                 <i class="fas fa-share me-2"></i>Share
             </button>
             <?php endif; ?>
@@ -550,7 +573,12 @@ include 'header.php';
                             
                             <!-- Receipt Info -->
                             <div class="flex-grow-1">
-                                <h6 class="mb-1 fw-bold"><?php echo htmlspecialchars($receipt['title']); ?></h6>
+                                <h6 class="mb-1 fw-bold">
+                                    <a href="edit_receipt.php?id=<?php echo $receipt['id']; ?>" 
+                                       class="text-decoration-none text-dark">
+                                        <?php echo htmlspecialchars($receipt['title']); ?>
+                                    </a>
+                                </h6>
                                 <?php if ($receipt['vendor']): ?>
                                 <div class="text-muted small mb-1">
                                     <i class="fas fa-store me-1"></i><?php echo htmlspecialchars($receipt['vendor']); ?>
@@ -591,6 +619,11 @@ include 'header.php';
                         </div>
                         <?php if ($current_box['access_level'] !== 'viewer'): ?>
                         <div class="btn-group btn-group-sm">
+                            <a href="edit_receipt.php?id=<?php echo $receipt['id']; ?>" 
+                               class="btn btn-outline-primary" title="Edit Receipt">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            
                             <?php if (!$receipt['is_logged']): ?>
                             <button class="btn btn-success" onclick="toggleStatus(<?php echo $receipt['id']; ?>, 1)" 
                                     title="Mark as Logged">
@@ -604,7 +637,7 @@ include 'header.php';
                             <?php endif; ?>
                             
                             <a href="<?php echo htmlspecialchars($receipt['file_path']); ?>" 
-                               class="btn btn-outline-primary" download title="Download">
+                               class="btn btn-outline-secondary" download title="Download">
                                 <i class="fas fa-download"></i>
                             </a>
                             
@@ -614,10 +647,16 @@ include 'header.php';
                             </button>
                         </div>
                         <?php else: ?>
-                        <a href="<?php echo htmlspecialchars($receipt['file_path']); ?>" 
-                           class="btn btn-outline-primary btn-sm" download title="Download">
-                            <i class="fas fa-download"></i>
-                        </a>
+                        <div class="btn-group btn-group-sm">
+                            <a href="edit_receipt.php?id=<?php echo $receipt['id']; ?>" 
+                               class="btn btn-outline-primary" title="View Receipt">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <a href="<?php echo htmlspecialchars($receipt['file_path']); ?>" 
+                               class="btn btn-outline-secondary" download title="Download">
+                                <i class="fas fa-download"></i>
+                            </a>
+                        </div>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -735,7 +774,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     setupImageDragging();
+    <?php if ($current_box['access_level'] === 'owner'): ?>
     loadCurrentShares();
+    <?php endif; ?>
 });
 
 // Advanced Image Modal Functions
@@ -911,7 +952,11 @@ if (inviteForm) {
             if (data.success) {
                 this.reset();
                 loadCurrentShares();
-                alert('Invitation sent successfully!');
+                if (window.showNotification) {
+                    showNotification('Invitation sent successfully!', 'success');
+                } else {
+                    alert('Invitation sent successfully!');
+                }
             } else {
                 alert('Error: ' + data.message);
             }

@@ -1,6 +1,31 @@
 <?php
-// config.php - Simple configuration
+// config.php - Enhanced configuration with better session handling
+// Set session configuration before starting session
+ini_set('session.gc_maxlifetime', 1800); // 30 minutes
+ini_set('session.cookie_lifetime', 0); // Until browser closes
+ini_set('session.use_strict_mode', 1);
+ini_set('session.cookie_httponly', 1);
+ini_set('session.cookie_secure', isset($_SERVER['HTTPS']));
+
 session_start();
+
+// Check for session timeout
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 1800)) {
+    // Session expired - clean up and redirect
+    session_unset();
+    session_destroy();
+    session_start();
+    $_SESSION['error'] = 'Your session has expired. Please log in again.';
+    if (!in_array(basename($_SERVER['PHP_SELF']), ['index.php', 'login.php', 'register.php'])) {
+        header('Location: index.php');
+        exit;
+    }
+}
+
+// Update last activity time
+if (is_logged_in()) {
+    $_SESSION['last_activity'] = time();
+}
 
 // Database connection - update these with your actual values
 $host = 'localhost';
@@ -8,15 +33,67 @@ $username = 'logit_user';
 $password = 'aycbkdTs*3kw2NLuFaD*';  
 $database = 'receiptV2';
 
-
 // Create PDO connection
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$database;charset=utf8mb4", $username, $password, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_TIMEOUT => 5
     ]);
 } catch (PDOException $e) {
-    die("Database connection failed: " . $e->getMessage());
+    // Log the error and show a user-friendly message
+    error_log("Database connection failed: " . $e->getMessage());
+    
+    // If it's an AJAX request, return JSON
+    if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'message' => 'Database connection failed. Please try again later.']);
+        exit;
+    }
+    
+    // For regular requests, show maintenance page
+    http_response_code(503);
+    ?>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>LogIt - Maintenance</title>
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+        <style>
+            body {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+            }
+            .maintenance-card {
+                background: rgba(255, 255, 255, 0.1);
+                backdrop-filter: blur(20px);
+                border-radius: 20px;
+                padding: 3rem;
+                text-align: center;
+                max-width: 500px;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }
+        </style>
+    </head>
+    <body>
+        <div class="maintenance-card">
+            <i class="fas fa-tools fa-4x mb-4"></i>
+            <h2 class="mb-3">Temporarily Unavailable</h2>
+            <p class="mb-4">LogIt is currently undergoing maintenance. We'll be back online shortly.</p>
+            <button onclick="location.reload()" class="btn btn-light">
+                <i class="fas fa-refresh me-2"></i>Try Again
+            </button>
+        </div>
+    </body>
+    </html>
+    <?php
+    exit;
 }
 
 // Simple constants
@@ -29,15 +106,24 @@ if (!is_dir(UPLOAD_DIR)) {
     mkdir(UPLOAD_DIR . 'thumbs/', 0755, true);
 }
 
-// Simple utility functions
+// Enhanced utility functions
 function is_logged_in() {
-    return isset($_SESSION['user_id']) && isset($_SESSION['username']);
+    return isset($_SESSION['user_id']) && 
+           isset($_SESSION['username']) && 
+           isset($_SESSION['last_activity']);
 }
 
 function require_login() {
     if (!is_logged_in()) {
+        // Check if it's an AJAX request
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'Session expired', 'redirect' => 'index.php']);
+            exit;
+        }
+        
         $_SESSION['error'] = 'Please log in to continue.';
-        header('Location: login.php');
+        header('Location: index.php');
         exit;
     }
 }
@@ -50,6 +136,10 @@ function redirect($url, $message = '', $type = 'info') {
     if ($message) {
         $_SESSION[$type] = $message;
     }
+    
+    // Prevent header injection
+    $url = filter_var($url, FILTER_SANITIZE_URL);
+    
     header("Location: $url");
     exit;
 }
@@ -65,5 +155,50 @@ function get_flash($type = 'info') {
 
 function clean_input($input) {
     return htmlspecialchars(trim($input), ENT_QUOTES, 'UTF-8');
+}
+
+// Enhanced error handling for AJAX requests
+function handle_ajax_error($message, $code = 400) {
+    if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+        http_response_code($code);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'message' => $message]);
+        exit;
+    }
+}
+
+// Check for suspicious activity
+function check_security() {
+    // Rate limiting - simple implementation
+    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    $current_time = time();
+    
+    // Clean up old entries (older than 1 hour)
+    if (!isset($_SESSION['rate_limit'])) {
+        $_SESSION['rate_limit'] = [];
+    }
+    
+    $_SESSION['rate_limit'] = array_filter($_SESSION['rate_limit'], function($timestamp) use ($current_time) {
+        return ($current_time - $timestamp) < 3600; // 1 hour
+    });
+    
+    // Count requests from this IP in the last hour
+    $request_count = count(array_filter($_SESSION['rate_limit'], function($entry) use ($ip) {
+        return isset($entry['ip']) && $entry['ip'] === $ip;
+    }));
+    
+    // Allow max 1000 requests per hour per IP
+    if ($request_count > 1000) {
+        http_response_code(429);
+        die('Too many requests. Please try again later.');
+    }
+    
+    // Log this request
+    $_SESSION['rate_limit'][] = ['ip' => $ip, 'time' => $current_time];
+}
+
+// Call security check for non-static requests
+if ($_SERVER['REQUEST_METHOD'] === 'POST' || isset($_GET['action'])) {
+    check_security();
 }
 ?>
