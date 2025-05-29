@@ -45,106 +45,103 @@ $debug_info[] = "Access Level: " . $receipt['access_level'];
 $debug_info[] = "Request Method: " . $_SERVER['REQUEST_METHOD'];
 $debug_info[] = "POST Data: " . json_encode($_POST);
 
-// Handle form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $debug_info[] = "=== FORM SUBMITTED ===";
-    $debug_info[] = "update_receipt isset: " . (isset($_POST['update_receipt']) ? 'YES' : 'NO');
+// Handle form submission - FIXED: Check for form fields instead of hidden field
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'])) {
+    $debug_info[] = "=== FORM SUBMITTED (detected via title field) ===";
     
-    if (isset($_POST['update_receipt'])) {
-        $debug_info[] = "=== PROCESSING UPDATE ===";
+    try {
+        $title = clean_input($_POST['title'] ?? '');
+        $description = clean_input($_POST['description'] ?? '');
+        $amount = !empty($_POST['amount']) ? (float)$_POST['amount'] : null;
+        $receipt_date = !empty($_POST['receipt_date']) ? $_POST['receipt_date'] : null;
+        $category = clean_input($_POST['category'] ?? '');
+        $vendor = clean_input($_POST['vendor'] ?? '');
+        $is_logged = isset($_POST['is_logged']) ? 1 : 0;
         
-        try {
-            $title = clean_input($_POST['title'] ?? '');
-            $description = clean_input($_POST['description'] ?? '');
-            $amount = !empty($_POST['amount']) ? (float)$_POST['amount'] : null;
-            $receipt_date = !empty($_POST['receipt_date']) ? $_POST['receipt_date'] : null;
-            $category = clean_input($_POST['category'] ?? '');
-            $vendor = clean_input($_POST['vendor'] ?? '');
-            $is_logged = isset($_POST['is_logged']) ? 1 : 0;
+        $debug_info[] = "Title: '$title'";
+        $debug_info[] = "Amount: '$amount'";
+        $debug_info[] = "Date: '$receipt_date'";
+        $debug_info[] = "Category: '$category'";
+        $debug_info[] = "Vendor: '$vendor'";
+        $debug_info[] = "Is Logged: $is_logged";
+        
+        if (empty($title)) {
+            $error = 'Receipt title is required.';
+            $debug_info[] = "ERROR: Empty title";
+        } else {
+            $debug_info[] = "=== CHECKING PERMISSIONS ===";
             
-            $debug_info[] = "Title: $title";
-            $debug_info[] = "Amount: $amount";
-            $debug_info[] = "Date: $receipt_date";
-            $debug_info[] = "Category: $category";
-            $debug_info[] = "Vendor: $vendor";
-            $debug_info[] = "Is Logged: $is_logged";
+            // Verify permission again before update
+            $perm_stmt = $pdo->prepare("
+                SELECT COUNT(*) as can_edit 
+                FROM receipts r 
+                JOIN receipt_boxes rb ON r.box_id = rb.id 
+                LEFT JOIN box_shares bs ON rb.id = bs.box_id AND bs.user_id = ?
+                WHERE r.id = ? AND (rb.owner_id = ? OR (bs.user_id = ? AND bs.can_edit = 1))
+            ");
+            $perm_stmt->execute([$user_id, $receipt_id, $user_id, $user_id]);
+            $can_edit = $perm_stmt->fetchColumn();
             
-            if (empty($title)) {
-                $error = 'Receipt title is required.';
-                $debug_info[] = "ERROR: Empty title";
+            $debug_info[] = "Permission check result: $can_edit";
+            
+            if (!$can_edit) {
+                $error = 'Permission denied to edit this receipt.';
+                $debug_info[] = "ERROR: Permission denied";
             } else {
-                $debug_info[] = "=== CHECKING PERMISSIONS ===";
+                $debug_info[] = "=== EXECUTING UPDATE ===";
                 
-                // Verify permission again before update
-                $perm_stmt = $pdo->prepare("
-                    SELECT COUNT(*) as can_edit 
-                    FROM receipts r 
-                    JOIN receipt_boxes rb ON r.box_id = rb.id 
-                    LEFT JOIN box_shares bs ON rb.id = bs.box_id AND bs.user_id = ?
-                    WHERE r.id = ? AND (rb.owner_id = ? OR (bs.user_id = ? AND bs.can_edit = 1))
-                ");
-                $perm_stmt->execute([$user_id, $receipt_id, $user_id, $user_id]);
-                $can_edit = $perm_stmt->fetchColumn();
+                $update_sql = "UPDATE receipts SET title = ?, description = ?, amount = ?, receipt_date = ?, category = ?, vendor = ?, is_logged = ? WHERE id = ?";
+                $debug_info[] = "SQL: $update_sql";
+                $debug_info[] = "Parameters: ['" . implode("', '", [$title, $description, ($amount ?? 'NULL'), ($receipt_date ?? 'NULL'), $category, $vendor, $is_logged, $receipt_id]) . "']";
                 
-                $debug_info[] = "Permission check result: $can_edit";
+                $stmt = $pdo->prepare($update_sql);
+                $result = $stmt->execute([$title, $description, $amount, $receipt_date, $category, $vendor, $is_logged, $receipt_id]);
                 
-                if (!$can_edit) {
-                    $error = 'Permission denied to edit this receipt.';
-                    $debug_info[] = "ERROR: Permission denied";
-                } else {
-                    $debug_info[] = "=== EXECUTING UPDATE ===";
+                $debug_info[] = "Execute result: " . ($result ? 'TRUE' : 'FALSE');
+                $debug_info[] = "Affected rows: " . $stmt->rowCount();
+                $debug_info[] = "Error info: " . json_encode($stmt->errorInfo());
+                
+                if ($result) {
+                    $success = 'Receipt updated successfully! Affected rows: ' . $stmt->rowCount();
+                    $debug_info[] = "SUCCESS: Receipt updated";
                     
-                    $update_sql = "UPDATE receipts SET title = ?, description = ?, amount = ?, receipt_date = ?, category = ?, vendor = ?, is_logged = ? WHERE id = ?";
-                    $debug_info[] = "SQL: $update_sql";
-                    $debug_info[] = "Parameters: [" . implode(', ', [$title, $description, $amount, $receipt_date, $category, $vendor, $is_logged, $receipt_id]) . "]";
+                    // Refresh receipt data
+                    $stmt = $pdo->prepare("
+                        SELECT r.*, rb.name as box_name, rb.owner_id,
+                               CASE 
+                                   WHEN rb.owner_id = ? THEN 'owner'
+                                   WHEN bs.can_edit = 1 THEN 'editor'
+                                   ELSE 'viewer'
+                               END as access_level
+                        FROM receipts r 
+                        JOIN receipt_boxes rb ON r.box_id = rb.id 
+                        LEFT JOIN box_shares bs ON rb.id = bs.box_id AND bs.user_id = ?
+                        WHERE r.id = ?
+                    ");
+                    $stmt->execute([$user_id, $user_id, $receipt_id]);
+                    $new_receipt = $stmt->fetch();
                     
-                    $stmt = $pdo->prepare($update_sql);
-                    $result = $stmt->execute([$title, $description, $amount, $receipt_date, $category, $vendor, $is_logged, $receipt_id]);
-                    
-                    $debug_info[] = "Execute result: " . ($result ? 'TRUE' : 'FALSE');
-                    $debug_info[] = "Affected rows: " . $stmt->rowCount();
-                    
-                    if ($result) {
-                        $success = 'Receipt updated successfully!';
-                        $debug_info[] = "SUCCESS: Receipt updated";
-                        
-                        // Refresh receipt data
-                        $stmt = $pdo->prepare("
-                            SELECT r.*, rb.name as box_name, rb.owner_id,
-                                   CASE 
-                                       WHEN rb.owner_id = ? THEN 'owner'
-                                       WHEN bs.can_edit = 1 THEN 'editor'
-                                       ELSE 'viewer'
-                                   END as access_level
-                            FROM receipts r 
-                            JOIN receipt_boxes rb ON r.box_id = rb.id 
-                            LEFT JOIN box_shares bs ON rb.id = bs.box_id AND bs.user_id = ?
-                            WHERE r.id = ?
-                        ");
-                        $stmt->execute([$user_id, $user_id, $receipt_id]);
-                        $new_receipt = $stmt->fetch();
-                        
-                        if ($new_receipt) {
-                            $receipt = $new_receipt;
-                            $debug_info[] = "Receipt data refreshed";
-                        } else {
-                            $debug_info[] = "WARNING: Could not refresh receipt data";
-                        }
-                        
+                    if ($new_receipt) {
+                        $receipt = $new_receipt;
+                        $debug_info[] = "Receipt data refreshed - new title: '" . $receipt['title'] . "'";
                     } else {
-                        $error = 'Failed to update receipt. Database error.';
-                        $debug_info[] = "ERROR: Update failed";
+                        $debug_info[] = "WARNING: Could not refresh receipt data";
                     }
+                    
+                } else {
+                    $error = 'Failed to update receipt. Database error.';
+                    $debug_info[] = "ERROR: Update failed";
+                    $debug_info[] = "PDO Error Info: " . json_encode($stmt->errorInfo());
                 }
             }
-        } catch (Exception $e) {
-            $error = 'Exception: ' . $e->getMessage();
-            $debug_info[] = "EXCEPTION: " . $e->getMessage();
-            $debug_info[] = "TRACE: " . $e->getTraceAsString();
         }
-    } else {
-        $debug_info[] = "Form submitted but no update_receipt field found";
+    } catch (Exception $e) {
+        $error = 'Exception: ' . $e->getMessage();
+        $debug_info[] = "EXCEPTION: " . $e->getMessage();
+        $debug_info[] = "TRACE: " . $e->getTraceAsString();
     }
+} else if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $debug_info[] = "POST request received but no title field found";
 }
 
 $page_title = 'Edit Receipt (Debug)';
