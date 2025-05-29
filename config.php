@@ -33,67 +33,107 @@ $username = 'logit_user';
 $password = 'aycbkdTs*3kw2NLuFaD*';  
 $database = 'receiptV2';
 
-// Create PDO connection
-try {
-    $pdo = new PDO("mysql:host=$host;dbname=$database;charset=utf8mb4", $username, $password, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_TIMEOUT => 5
-    ]);
-} catch (PDOException $e) {
-    // Log the error and show a user-friendly message
-    error_log("Database connection failed: " . $e->getMessage());
-    
-    // If it's an AJAX request, return JSON
-    if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
-        header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'message' => 'Database connection failed. Please try again later.']);
-        exit;
+// Create PDO connection with retry logic
+$pdo = null;
+$max_retries = 3;
+$retry_count = 0;
+
+while ($retry_count < $max_retries && $pdo === null) {
+    try {
+        $pdo = new PDO("mysql:host=$host;dbname=$database;charset=utf8mb4", $username, $password, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_TIMEOUT => 10,
+            PDO::ATTR_PERSISTENT => false,
+            PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
+        ]);
+        
+        // Test the connection
+        $pdo->query("SELECT 1");
+        
+    } catch (PDOException $e) {
+        $retry_count++;
+        error_log("Database connection attempt $retry_count failed: " . $e->getMessage());
+        
+        if ($retry_count >= $max_retries) {
+            // Log the final error
+            error_log("Database connection failed after $max_retries attempts: " . $e->getMessage());
+            
+            // If it's an AJAX request, return JSON
+            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => 'Database connection failed. Please try again later.']);
+                exit;
+            }
+            
+            // For regular requests, show maintenance page
+            http_response_code(503);
+            ?>
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>LogIt - Maintenance</title>
+                <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+                <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+                <style>
+                    body {
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        min-height: 100vh;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        color: white;
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    }
+                    .maintenance-card {
+                        background: rgba(255, 255, 255, 0.1);
+                        backdrop-filter: blur(20px);
+                        border-radius: 20px;
+                        padding: 3rem;
+                        text-align: center;
+                        max-width: 500px;
+                        border: 1px solid rgba(255, 255, 255, 0.2);
+                        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+                    }
+                    .btn-light {
+                        background: rgba(255, 255, 255, 0.2);
+                        border: 2px solid rgba(255, 255, 255, 0.3);
+                        color: white;
+                        transition: all 0.3s ease;
+                    }
+                    .btn-light:hover {
+                        background: rgba(255, 255, 255, 0.3);
+                        border-color: rgba(255, 255, 255, 0.5);
+                        color: white;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="maintenance-card">
+                    <i class="fas fa-database fa-4x mb-4 text-warning"></i>
+                    <h2 class="mb-3">Database Connection Issue</h2>
+                    <p class="mb-4">LogIt is experiencing database connectivity issues. Our team has been notified and we're working to resolve this quickly.</p>
+                    <div class="mb-4">
+                        <small class="text-muted">Error occurred at: <?php echo date('Y-m-d H:i:s'); ?></small>
+                    </div>
+                    <button onclick="location.reload()" class="btn btn-light me-2">
+                        <i class="fas fa-refresh me-2"></i>Try Again
+                    </button>
+                    <a href="db_test.php" class="btn btn-light">
+                        <i class="fas fa-tools me-2"></i>Test Database
+                    </a>
+                </div>
+            </body>
+            </html>
+            <?php
+            exit;
+        } else {
+            // Wait before retry
+            sleep(1);
+        }
     }
-    
-    // For regular requests, show maintenance page
-    http_response_code(503);
-    ?>
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>LogIt - Maintenance</title>
-        <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
-        <style>
-            body {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                min-height: 100vh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
-            }
-            .maintenance-card {
-                background: rgba(255, 255, 255, 0.1);
-                backdrop-filter: blur(20px);
-                border-radius: 20px;
-                padding: 3rem;
-                text-align: center;
-                max-width: 500px;
-                border: 1px solid rgba(255, 255, 255, 0.2);
-            }
-        </style>
-    </head>
-    <body>
-        <div class="maintenance-card">
-            <i class="fas fa-tools fa-4x mb-4"></i>
-            <h2 class="mb-3">Temporarily Unavailable</h2>
-            <p class="mb-4">LogIt is currently undergoing maintenance. We'll be back online shortly.</p>
-            <button onclick="location.reload()" class="btn btn-light">
-                <i class="fas fa-refresh me-2"></i>Try Again
-            </button>
-        </div>
-    </body>
-    </html>
-    <?php
-    exit;
 }
 
 // Simple constants

@@ -1,5 +1,8 @@
 <?php
-// login.php - Simple login page
+// login.php - Fixed login page with better error handling
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 require_once 'config.php';
 
 // Redirect if already logged in
@@ -10,28 +13,56 @@ if (is_logged_in()) {
 $error = '';
 
 // Handle login
-if ($_POST) {
-    $username = clean_input($_POST['username'] ?? '');
-    $password = $_POST['password'] ?? '';
-    
-    if (empty($username) || empty($password)) {
-        $error = 'Please enter both username and password.';
-    } else {
-        // Check user credentials
-        $stmt = $pdo->prepare("SELECT id, username, password_hash, full_name FROM users WHERE username = ? OR email = ?");
-        $stmt->execute([$username, $username]);
-        $user = $stmt->fetch();
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    try {
+        $username = clean_input($_POST['username'] ?? '');
+        $password = $_POST['password'] ?? '';
         
-        if ($user && password_verify($password, $user['password_hash'])) {
-            // Login successful
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['username'] = $user['username'];
-            $_SESSION['full_name'] = $user['full_name'];
-            
-            redirect('dashboard.php', 'Welcome back!', 'success');
+        if (empty($username) || empty($password)) {
+            $error = 'Please enter both username and password.';
         } else {
-            $error = 'Invalid username or password.';
+            // Check user credentials with proper error handling
+            $stmt = $pdo->prepare("SELECT id, username, password_hash, full_name FROM users WHERE username = ? OR email = ? LIMIT 1");
+            
+            if (!$stmt) {
+                error_log("Login: Failed to prepare statement - " . implode(', ', $pdo->errorInfo()));
+                $error = 'Database error. Please try again.';
+            } else {
+                $result = $stmt->execute([$username, $username]);
+                
+                if (!$result) {
+                    error_log("Login: Failed to execute statement - " . implode(', ', $stmt->errorInfo()));
+                    $error = 'Database error. Please try again.';
+                } else {
+                    $user = $stmt->fetch();
+                    
+                    if ($user && password_verify($password, $user['password_hash'])) {
+                        // Login successful - regenerate session ID for security
+                        session_regenerate_id(true);
+                        
+                        $_SESSION['user_id'] = $user['id'];
+                        $_SESSION['username'] = $user['username'];
+                        $_SESSION['full_name'] = $user['full_name'] ?? $user['username'];
+                        $_SESSION['last_activity'] = time();
+                        
+                        // Log successful login
+                        error_log("Successful login for user: " . $user['username']);
+                        
+                        redirect('dashboard.php', 'Welcome back!', 'success');
+                    } else {
+                        // Log failed login attempt
+                        error_log("Failed login attempt for username: " . $username);
+                        $error = 'Invalid username or password.';
+                    }
+                }
+            }
         }
+    } catch (PDOException $e) {
+        error_log("Login PDO Error: " . $e->getMessage());
+        $error = 'Database connection error. Please try again later.';
+    } catch (Exception $e) {
+        error_log("Login General Error: " . $e->getMessage());
+        $error = 'An unexpected error occurred. Please try again.';
     }
 }
 
@@ -51,20 +82,22 @@ include 'header.php';
                 
                 <?php if ($error): ?>
                 <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-triangle me-2"></i><?php echo $error; ?>
+                    <i class="fas fa-exclamation-triangle me-2"></i><?php echo htmlspecialchars($error); ?>
                 </div>
                 <?php endif; ?>
                 
-                <form method="POST">
+                <form method="POST" action="login.php">
                     <div class="mb-3">
                         <label class="form-label">Username or Email</label>
                         <input type="text" class="form-control" name="username" required 
-                               value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>">
+                               value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>"
+                               autocomplete="username">
                     </div>
                     
                     <div class="mb-4">
                         <label class="form-label">Password</label>
-                        <input type="password" class="form-control" name="password" required>
+                        <input type="password" class="form-control" name="password" required
+                               autocomplete="current-password">
                     </div>
                     
                     <div class="d-grid mb-3">
@@ -91,5 +124,35 @@ include 'header.php';
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Focus on username field if empty
+    const usernameField = document.querySelector('input[name="username"]');
+    if (usernameField && !usernameField.value) {
+        usernameField.focus();
+    }
+    
+    // Add form validation
+    const form = document.querySelector('form');
+    form.addEventListener('submit', function(e) {
+        const username = document.querySelector('input[name="username"]').value.trim();
+        const password = document.querySelector('input[name="password"]').value;
+        
+        if (!username || !password) {
+            e.preventDefault();
+            alert('Please enter both username and password.');
+            return false;
+        }
+        
+        // Show loading state
+        const submitBtn = document.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Signing In...';
+        }
+    });
+});
+</script>
 
 <?php include 'footer.php'; ?>
