@@ -1,96 +1,122 @@
 <?php
-// dashboard.php - Enhanced dashboard with edit functionality
+// dashboard.php - Fixed version to resolve 500 errors
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 require_once 'config.php';
 require_login();
 
 $user_id = get_current_user_id();
 
-// Get user's boxes (owned + shared) - FIXED VERSION
-$stmt = $pdo->prepare("
-    SELECT rb.*, 'owner' as access_level, COUNT(r.id) as receipt_count, COALESCE(SUM(r.amount), 0) as total_amount
-    FROM receipt_boxes rb 
-    LEFT JOIN receipts r ON rb.id = r.box_id 
-    WHERE rb.owner_id = ? 
-    GROUP BY rb.id, rb.name, rb.description, rb.owner_id, rb.created_at
-    
-    UNION ALL
-    
-    SELECT rb.*, IF(bs.can_edit = 1, 'editor', 'viewer') as access_level, COUNT(r.id) as receipt_count, COALESCE(SUM(r.amount), 0) as total_amount
-    FROM receipt_boxes rb
-    INNER JOIN box_shares bs ON rb.id = bs.box_id
-    LEFT JOIN receipts r ON rb.id = r.box_id 
-    WHERE bs.user_id = ?
-    GROUP BY rb.id, rb.name, rb.description, rb.owner_id, rb.created_at, bs.can_edit
-    
-    ORDER BY access_level = 'owner' DESC, name ASC
-");
-$stmt->execute([$user_id, $user_id]);
-$boxes = $stmt->fetchAll();
+// Initialize variables
+$boxes = [];
+$current_box = null;
+$selected_box_id = null;
+$receipts = [];
+$stats = ['total' => 0, 'logged' => 0, 'pending' => 0, 'total_amount' => 0];
 
-// Get selected box
-$selected_box_id = $_GET['box'] ?? ($boxes[0]['id'] ?? null);
+try {
+    // Get user's boxes (owned + shared) - FIXED VERSION
+    $stmt = $pdo->prepare("
+        SELECT rb.id, rb.name, rb.description, rb.owner_id, rb.created_at, 
+               'owner' as access_level, 
+               COUNT(r.id) as receipt_count, 
+               COALESCE(SUM(r.amount), 0) as total_amount
+        FROM receipt_boxes rb 
+        LEFT JOIN receipts r ON rb.id = r.box_id 
+        WHERE rb.owner_id = ? 
+        GROUP BY rb.id, rb.name, rb.description, rb.owner_id, rb.created_at
+        
+        UNION ALL
+        
+        SELECT rb.id, rb.name, rb.description, rb.owner_id, rb.created_at,
+               IF(bs.can_edit = 1, 'editor', 'viewer') as access_level, 
+               COUNT(r.id) as receipt_count, 
+               COALESCE(SUM(r.amount), 0) as total_amount
+        FROM receipt_boxes rb
+        INNER JOIN box_shares bs ON rb.id = bs.box_id
+        LEFT JOIN receipts r ON rb.id = r.box_id 
+        WHERE bs.user_id = ?
+        GROUP BY rb.id, rb.name, rb.description, rb.owner_id, rb.created_at, bs.can_edit
+        
+        ORDER BY access_level = 'owner' DESC, name ASC
+    ");
+    $stmt->execute([$user_id, $user_id]);
+    $boxes = $stmt->fetchAll();
 
-if (!$selected_box_id) {
-    redirect('boxes.php', 'Please create a receipt box first.', 'info');
-}
+    // Get selected box
+    $selected_box_id = $_GET['box'] ?? ($boxes[0]['id'] ?? null);
 
-// Verify access to selected box
-$has_access = false;
-foreach ($boxes as $box) {
-    if ($box['id'] == $selected_box_id) {
-        $has_access = true;
-        $current_box = $box;
-        break;
+    if (!$selected_box_id) {
+        redirect('boxes.php', 'Please create a receipt box first.', 'info');
     }
+
+    // Verify access to selected box
+    $has_access = false;
+    foreach ($boxes as $box) {
+        if ($box['id'] == $selected_box_id) {
+            $has_access = true;
+            $current_box = $box;
+            break;
+        }
+    }
+
+    if (!$has_access) {
+        if (!empty($boxes)) {
+            redirect('dashboard.php?box=' . $boxes[0]['id'], 'Invalid box selected.', 'error');
+        } else {
+            redirect('boxes.php', 'No accessible boxes found.', 'error');
+        }
+    }
+
+    // Get receipts for selected box
+    $search = $_GET['search'] ?? '';
+    $filter = $_GET['filter'] ?? '';
+
+    $where_clause = "WHERE r.box_id = ?";
+    $params = [$selected_box_id];
+
+    if ($search) {
+        $where_clause .= " AND (r.title LIKE ? OR r.vendor LIKE ? OR r.description LIKE ?)";
+        $search_term = "%$search%";
+        $params[] = $search_term;
+        $params[] = $search_term;
+        $params[] = $search_term;
+    }
+
+    if ($filter === 'logged') {
+        $where_clause .= " AND r.is_logged = 1";
+    } elseif ($filter === 'pending') {
+        $where_clause .= " AND r.is_logged = 0";
+    }
+
+    $stmt = $pdo->prepare("
+        SELECT r.*, u.username as uploaded_by_name 
+        FROM receipts r 
+        JOIN users u ON r.uploaded_by = u.id 
+        $where_clause 
+        ORDER BY r.created_at DESC
+        LIMIT 50
+    ");
+    $stmt->execute($params);
+    $receipts = $stmt->fetchAll() ?: [];
+
+    // Get statistics
+    $stmt = $pdo->prepare("
+        SELECT 
+            COUNT(*) as total,
+            SUM(CASE WHEN is_logged THEN 1 ELSE 0 END) as logged,
+            SUM(CASE WHEN is_logged = 0 THEN 1 ELSE 0 END) as pending,
+            COALESCE(SUM(amount), 0) as total_amount
+        FROM receipts WHERE box_id = ?
+    ");
+    $stmt->execute([$selected_box_id]);
+    $stats = $stmt->fetch() ?: $stats;
+
+} catch (Exception $e) {
+    error_log("Dashboard error: " . $e->getMessage());
+    redirect('boxes.php', 'Error loading dashboard. Please try again.', 'error');
 }
-
-if (!$has_access) {
-    redirect('dashboard.php?box=' . $boxes[0]['id'], 'Invalid box selected.', 'error');
-}
-
-// Get receipts for selected box
-$search = $_GET['search'] ?? '';
-$filter = $_GET['filter'] ?? '';
-
-$where_clause = "WHERE r.box_id = ?";
-$params = [$selected_box_id];
-
-if ($search) {
-    $where_clause .= " AND (r.title LIKE ? OR r.vendor LIKE ? OR r.description LIKE ?)";
-    $search_term = "%$search%";
-    $params[] = $search_term;
-    $params[] = $search_term;
-    $params[] = $search_term;
-}
-
-if ($filter === 'logged') {
-    $where_clause .= " AND r.is_logged = 1";
-} elseif ($filter === 'pending') {
-    $where_clause .= " AND r.is_logged = 0";
-}
-
-$stmt = $pdo->prepare("
-    SELECT r.*, u.username as uploaded_by_name 
-    FROM receipts r 
-    JOIN users u ON r.uploaded_by = u.id 
-    $where_clause 
-    ORDER BY r.created_at DESC
-    LIMIT 50
-");
-$stmt->execute($params);
-$receipts = $stmt->fetchAll();
-
-// Get statistics
-$stmt = $pdo->prepare("
-    SELECT 
-        COUNT(*) as total,
-        SUM(CASE WHEN is_logged THEN 1 ELSE 0 END) as logged,
-        SUM(CASE WHEN is_logged = 0 THEN 1 ELSE 0 END) as pending,
-        COALESCE(SUM(amount), 0) as total_amount
-    FROM receipts WHERE box_id = ?
-");
-$stmt->execute([$selected_box_id]);
-$stats = $stmt->fetch();
 
 $page_title = 'Dashboard';
 include 'header.php';
@@ -329,15 +355,15 @@ include 'header.php';
             <h1 class="display-6 fw-bold mb-2">
                 <i class="fas fa-tachometer-alt text-primary me-2"></i>Dashboard
             </h1>
-            <p class="text-muted mb-0">Welcome back, <?php echo htmlspecialchars($_SESSION['username']); ?>!</p>
+            <p class="text-muted mb-0">Welcome back, <?php echo htmlspecialchars($_SESSION['username'] ?? 'User'); ?>!</p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
-            <?php if ($current_box['access_level'] !== 'viewer'): ?>
+            <?php if ($current_box && $current_box['access_level'] !== 'viewer'): ?>
             <a href="upload.php" class="btn btn-accent">
                 <i class="fas fa-plus me-2"></i>Upload Receipt
             </a>
             <?php endif; ?>
-            <?php if ($current_box['access_level'] === 'owner'): ?>
+            <?php if ($current_box && $current_box['access_level'] === 'owner'): ?>
             <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#shareBoxModal">
                 <i class="fas fa-share me-2"></i>Share
             </button>
@@ -346,6 +372,7 @@ include 'header.php';
     </div>
 </div>
 
+<?php if ($current_box): ?>
 <!-- Box Selector -->
 <div class="card box-selector">
     <div class="card-body">
@@ -357,7 +384,7 @@ include 'header.php';
                             <i class="fas fa-box text-primary me-2"></i>
                             <strong><?php echo htmlspecialchars($current_box['name']); ?></strong>
                         </h5>
-                        <?php if ($current_box['description']): ?>
+                        <?php if (!empty($current_box['description'])): ?>
                         <p class="text-muted mb-0"><?php echo htmlspecialchars($current_box['description']); ?></p>
                         <?php endif; ?>
                     </div>
@@ -367,6 +394,7 @@ include 'header.php';
                 </div>
             </div>
             <div class="col-md-4 text-end">
+                <?php if (count($boxes) > 1): ?>
                 <div class="dropdown">
                     <button class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
                         <i class="fas fa-exchange-alt me-1"></i>Switch Box
@@ -394,6 +422,7 @@ include 'header.php';
                         </a></li>
                     </ul>
                 </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -579,12 +608,12 @@ include 'header.php';
                                         <?php echo htmlspecialchars($receipt['title']); ?>
                                     </a>
                                 </h6>
-                                <?php if ($receipt['vendor']): ?>
+                                <?php if (!empty($receipt['vendor'])): ?>
                                 <div class="text-muted small mb-1">
                                     <i class="fas fa-store me-1"></i><?php echo htmlspecialchars($receipt['vendor']); ?>
                                 </div>
                                 <?php endif; ?>
-                                <?php if ($receipt['description']): ?>
+                                <?php if (!empty($receipt['description'])): ?>
                                 <div class="text-muted small">
                                     <?php echo htmlspecialchars(substr($receipt['description'], 0, 60)); ?>
                                     <?php echo strlen($receipt['description']) > 60 ? '...' : ''; ?>
@@ -595,7 +624,7 @@ include 'header.php';
                     </div>
                     
                     <div class="col-md-2 text-center">
-                        <?php if ($receipt['amount']): ?>
+                        <?php if (!empty($receipt['amount'])): ?>
                         <div class="fw-bold text-success h5 mb-0">$<?php echo number_format($receipt['amount'], 2); ?></div>
                         <?php else: ?>
                         <span class="text-muted">No amount</span>
@@ -603,7 +632,7 @@ include 'header.php';
                     </div>
                     
                     <div class="col-md-2 text-center">
-                        <?php if ($receipt['receipt_date']): ?>
+                        <?php if (!empty($receipt['receipt_date'])): ?>
                         <div class="fw-semibold"><?php echo date('M j', strtotime($receipt['receipt_date'])); ?></div>
                         <small class="text-muted"><?php echo date('Y', strtotime($receipt['receipt_date'])); ?></small>
                         <?php else: ?>
@@ -666,6 +695,7 @@ include 'header.php';
     </div>
     <?php endif; ?>
 </div>
+<?php endif; ?>
 
 <!-- Advanced Image Modal -->
 <div class="modal fade advanced-modal" id="advancedImageModal" tabindex="-1">
@@ -699,7 +729,7 @@ include 'header.php';
 </div>
 
 <!-- Share Box Modal -->
-<?php if ($current_box['access_level'] === 'owner'): ?>
+<?php if ($current_box && $current_box['access_level'] === 'owner'): ?>
 <div class="modal fade" id="shareBoxModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -774,7 +804,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     setupImageDragging();
-    <?php if ($current_box['access_level'] === 'owner'): ?>
+    <?php if ($current_box && $current_box['access_level'] === 'owner'): ?>
     loadCurrentShares();
     <?php endif; ?>
 });
@@ -933,7 +963,7 @@ function deleteReceipt(receiptId) {
 }
 
 // Box Sharing Functions
-<?php if ($current_box['access_level'] === 'owner'): ?>
+<?php if ($current_box && $current_box['access_level'] === 'owner'): ?>
 const inviteForm = document.getElementById('inviteForm');
 if (inviteForm) {
     inviteForm.addEventListener('submit', function(e) {
