@@ -10,7 +10,7 @@ if (!$receipt_id) {
     redirect('dashboard.php', 'Invalid receipt ID.', 'error');
 }
 
-// Get receipt with permission check
+// Get receipt with permission check - FIXED QUERY
 $stmt = $pdo->prepare("
     SELECT r.*, rb.name as box_name, rb.owner_id,
            CASE 
@@ -37,49 +37,83 @@ if ($receipt['access_level'] === 'viewer') {
 $error = '';
 $success = '';
 
-// Handle form submission
-if ($_POST && isset($_POST['update_receipt'])) {
-    $title = clean_input($_POST['title'] ?? '');
-    $description = clean_input($_POST['description'] ?? '');
-    $amount = !empty($_POST['amount']) ? (float)$_POST['amount'] : null;
-    $receipt_date = $_POST['receipt_date'] ?? null;
-    $category = clean_input($_POST['category'] ?? '');
-    $vendor = clean_input($_POST['vendor'] ?? '');
-    $is_logged = isset($_POST['is_logged']) ? 1 : 0;
+// Handle form submission - FIXED UPDATE LOGIC
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_receipt'])) {
+    // Debug: Log form submission
+    error_log("Form submitted for receipt ID: $receipt_id");
+    error_log("POST data: " . print_r($_POST, true));
     
-    if (empty($title)) {
-        $error = 'Receipt title is required.';
-    } else {
-        try {
-            $stmt = $pdo->prepare("
-                UPDATE receipts 
-                SET title = ?, description = ?, amount = ?, receipt_date = ?, 
-                    category = ?, vendor = ?, is_logged = ?
-                WHERE id = ?
-            ");
-            $stmt->execute([$title, $description, $amount, $receipt_date, $category, $vendor, $is_logged, $receipt_id]);
-            
-            $success = 'Receipt updated successfully!';
-            
-            // Refresh receipt data
-            $stmt = $pdo->prepare("
-                SELECT r.*, rb.name as box_name, rb.owner_id,
-                       CASE 
-                           WHEN rb.owner_id = ? THEN 'owner'
-                           WHEN bs.can_edit = 1 THEN 'editor'
-                           ELSE 'viewer'
-                       END as access_level
+    try {
+        $title = clean_input($_POST['title'] ?? '');
+        $description = clean_input($_POST['description'] ?? '');
+        $amount = !empty($_POST['amount']) ? (float)$_POST['amount'] : null;
+        $receipt_date = !empty($_POST['receipt_date']) ? $_POST['receipt_date'] : null;
+        $category = clean_input($_POST['category'] ?? '');
+        $vendor = clean_input($_POST['vendor'] ?? '');
+        $is_logged = isset($_POST['is_logged']) ? 1 : 0;
+        
+        error_log("Processed values - Title: $title, Amount: $amount, Date: $receipt_date, Logged: $is_logged");
+        
+        if (empty($title)) {
+            $error = 'Receipt title is required.';
+        } else {
+            // Verify permission again before update
+            $perm_stmt = $pdo->prepare("
+                SELECT COUNT(*) as can_edit 
                 FROM receipts r 
                 JOIN receipt_boxes rb ON r.box_id = rb.id 
                 LEFT JOIN box_shares bs ON rb.id = bs.box_id AND bs.user_id = ?
-                WHERE r.id = ?
+                WHERE r.id = ? AND (rb.owner_id = ? OR (bs.user_id = ? AND bs.can_edit = 1))
             ");
-            $stmt->execute([$user_id, $user_id, $receipt_id]);
-            $receipt = $stmt->fetch();
+            $perm_stmt->execute([$user_id, $receipt_id, $user_id, $user_id]);
+            $can_edit = $perm_stmt->fetchColumn();
             
-        } catch (Exception $e) {
-            $error = 'Failed to update receipt. Please try again.';
+            error_log("Permission check result: $can_edit");
+            
+            if (!$can_edit) {
+                $error = 'Permission denied to edit this receipt.';
+            } else {
+                $stmt = $pdo->prepare("
+                    UPDATE receipts 
+                    SET title = ?, description = ?, amount = ?, receipt_date = ?, 
+                        category = ?, vendor = ?, is_logged = ?
+                    WHERE id = ?
+                ");
+                $result = $stmt->execute([$title, $description, $amount, $receipt_date, $category, $vendor, $is_logged, $receipt_id]);
+                
+                error_log("Update result: " . ($result ? 'SUCCESS' : 'FAILED'));
+                error_log("Affected rows: " . $stmt->rowCount());
+                
+                if ($result && $stmt->rowCount() >= 0) {
+                    $success = 'Receipt updated successfully!';
+                    
+                    // Refresh receipt data to show updated values
+                    $stmt = $pdo->prepare("
+                        SELECT r.*, rb.name as box_name, rb.owner_id,
+                               CASE 
+                                   WHEN rb.owner_id = ? THEN 'owner'
+                                   WHEN bs.can_edit = 1 THEN 'editor'
+                                   ELSE 'viewer'
+                               END as access_level
+                        FROM receipts r 
+                        JOIN receipt_boxes rb ON r.box_id = rb.id 
+                        LEFT JOIN box_shares bs ON rb.id = bs.box_id AND bs.user_id = ?
+                        WHERE r.id = ?
+                    ");
+                    $stmt->execute([$user_id, $user_id, $receipt_id]);
+                    $receipt = $stmt->fetch();
+                    
+                    error_log("Receipt data refreshed successfully");
+                    
+                } else {
+                    $error = 'Failed to update receipt. No changes were made.';
+                    error_log("Update failed - no rows affected");
+                }
+            }
         }
+    } catch (Exception $e) {
+        error_log("Receipt update error: " . $e->getMessage());
+        $error = 'Failed to update receipt. Error: ' . $e->getMessage();
     }
 }
 
