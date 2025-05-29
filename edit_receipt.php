@@ -1,11 +1,10 @@
 <?php
-// edit_receipt.php - Debug version with visible debugging
+// edit_receipt.php - Edit receipt details
 require_once 'config.php';
 require_login();
 
 $user_id = get_current_user_id();
 $receipt_id = (int)($_GET['id'] ?? 0);
-$debug_info = [];
 
 if (!$receipt_id) {
     redirect('dashboard.php', 'Invalid receipt ID.', 'error');
@@ -38,17 +37,8 @@ if ($receipt['access_level'] === 'viewer') {
 $error = '';
 $success = '';
 
-// Debug info
-$debug_info[] = "Receipt ID: $receipt_id";
-$debug_info[] = "User ID: $user_id";
-$debug_info[] = "Access Level: " . $receipt['access_level'];
-$debug_info[] = "Request Method: " . $_SERVER['REQUEST_METHOD'];
-$debug_info[] = "POST Data: " . json_encode($_POST);
-
-// Handle form submission - FIXED: Check for form fields instead of hidden field
+// Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'])) {
-    $debug_info[] = "=== FORM SUBMITTED (detected via title field) ===";
-    
     try {
         $title = clean_input($_POST['title'] ?? '');
         $description = clean_input($_POST['description'] ?? '');
@@ -58,19 +48,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'])) {
         $vendor = clean_input($_POST['vendor'] ?? '');
         $is_logged = isset($_POST['is_logged']) ? 1 : 0;
         
-        $debug_info[] = "Title: '$title'";
-        $debug_info[] = "Amount: '$amount'";
-        $debug_info[] = "Date: '$receipt_date'";
-        $debug_info[] = "Category: '$category'";
-        $debug_info[] = "Vendor: '$vendor'";
-        $debug_info[] = "Is Logged: $is_logged";
-        
         if (empty($title)) {
             $error = 'Receipt title is required.';
-            $debug_info[] = "ERROR: Empty title";
         } else {
-            $debug_info[] = "=== CHECKING PERMISSIONS ===";
-            
             // Verify permission again before update
             $perm_stmt = $pdo->prepare("
                 SELECT COUNT(*) as can_edit 
@@ -82,30 +62,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'])) {
             $perm_stmt->execute([$user_id, $receipt_id, $user_id, $user_id]);
             $can_edit = $perm_stmt->fetchColumn();
             
-            $debug_info[] = "Permission check result: $can_edit";
-            
             if (!$can_edit) {
                 $error = 'Permission denied to edit this receipt.';
-                $debug_info[] = "ERROR: Permission denied";
             } else {
-                $debug_info[] = "=== EXECUTING UPDATE ===";
-                
-                $update_sql = "UPDATE receipts SET title = ?, description = ?, amount = ?, receipt_date = ?, category = ?, vendor = ?, is_logged = ? WHERE id = ?";
-                $debug_info[] = "SQL: $update_sql";
-                $debug_info[] = "Parameters: ['" . implode("', '", [$title, $description, ($amount ?? 'NULL'), ($receipt_date ?? 'NULL'), $category, $vendor, $is_logged, $receipt_id]) . "']";
-                
-                $stmt = $pdo->prepare($update_sql);
+                $stmt = $pdo->prepare("
+                    UPDATE receipts 
+                    SET title = ?, description = ?, amount = ?, receipt_date = ?, 
+                        category = ?, vendor = ?, is_logged = ?
+                    WHERE id = ?
+                ");
                 $result = $stmt->execute([$title, $description, $amount, $receipt_date, $category, $vendor, $is_logged, $receipt_id]);
                 
-                $debug_info[] = "Execute result: " . ($result ? 'TRUE' : 'FALSE');
-                $debug_info[] = "Affected rows: " . $stmt->rowCount();
-                $debug_info[] = "Error info: " . json_encode($stmt->errorInfo());
-                
                 if ($result) {
-                    $success = 'Receipt updated successfully! Affected rows: ' . $stmt->rowCount();
-                    $debug_info[] = "SUCCESS: Receipt updated";
+                    $success = 'Receipt updated successfully!';
                     
-                    // Refresh receipt data
+                    // Refresh receipt data to show updated values
                     $stmt = $pdo->prepare("
                         SELECT r.*, rb.name as box_name, rb.owner_id,
                                CASE 
@@ -123,55 +94,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'])) {
                     
                     if ($new_receipt) {
                         $receipt = $new_receipt;
-                        $debug_info[] = "Receipt data refreshed - new title: '" . $receipt['title'] . "'";
-                    } else {
-                        $debug_info[] = "WARNING: Could not refresh receipt data";
                     }
-                    
                 } else {
-                    $error = 'Failed to update receipt. Database error.';
-                    $debug_info[] = "ERROR: Update failed";
-                    $debug_info[] = "PDO Error Info: " . json_encode($stmt->errorInfo());
+                    $error = 'Failed to update receipt. Please try again.';
                 }
             }
         }
     } catch (Exception $e) {
-        $error = 'Exception: ' . $e->getMessage();
-        $debug_info[] = "EXCEPTION: " . $e->getMessage();
-        $debug_info[] = "TRACE: " . $e->getTraceAsString();
+        error_log("Receipt update error: " . $e->getMessage());
+        $error = 'Failed to update receipt. Please try again.';
     }
-} else if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $debug_info[] = "POST request received but no title field found";
 }
 
-$page_title = 'Edit Receipt (Debug)';
+$page_title = 'Edit Receipt';
 include 'header.php';
 ?>
 
 <style>
-.debug-panel {
-    background: #f8f9fa;
-    border: 2px solid #dee2e6;
-    border-radius: 8px;
-    padding: 1rem;
-    margin-bottom: 2rem;
-    font-family: monospace;
-    font-size: 0.9rem;
-}
-.debug-panel h5 {
-    color: #dc3545;
-    margin-bottom: 1rem;
-}
-.debug-line {
-    margin: 0.25rem 0;
-    padding: 0.25rem;
-    background: white;
-    border-radius: 4px;
-}
 .receipt-preview {
     position: sticky;
     top: 2rem;
 }
+
 .receipt-image {
     max-width: 100%;
     max-height: 400px;
@@ -181,14 +125,17 @@ include 'header.php';
     cursor: pointer;
     transition: transform 0.2s;
 }
+
 .receipt-image:hover {
     transform: scale(1.05);
 }
+
 .edit-form {
     background: white;
     border-radius: 12px;
     box-shadow: 0 2px 15px rgba(0,0,0,0.08);
 }
+
 .receipt-info-card {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
@@ -196,15 +143,22 @@ include 'header.php';
     padding: 1.5rem;
     margin-bottom: 2rem;
 }
-</style>
 
-<!-- Debug Panel -->
-<div class="debug-panel">
-    <h5><i class="fas fa-bug me-2"></i>Debug Information</h5>
-    <?php foreach ($debug_info as $info): ?>
-        <div class="debug-line"><?php echo htmlspecialchars($info); ?></div>
-    <?php endforeach; ?>
-</div>
+.status-toggle {
+    transform: scale(1.2);
+}
+
+@media (max-width: 768px) {
+    .receipt-preview {
+        position: static;
+        margin-bottom: 2rem;
+    }
+    
+    .receipt-image {
+        max-height: 250px;
+    }
+}
+</style>
 
 <div class="d-flex align-items-center mb-4">
     <a href="dashboard.php?box=<?php echo $receipt['box_id']; ?>" class="btn btn-outline-secondary me-3">
@@ -212,7 +166,7 @@ include 'header.php';
     </a>
     <div>
         <h1 class="mb-1">
-            <i class="fas fa-edit text-primary me-2"></i>Edit Receipt (Debug Mode)
+            <i class="fas fa-edit text-primary me-2"></i>Edit Receipt
         </h1>
         <p class="text-muted mb-0">
             From <strong><?php echo htmlspecialchars($receipt['box_name']); ?></strong>
@@ -230,6 +184,11 @@ include 'header.php';
 <?php if ($success): ?>
 <div class="alert alert-success">
     <i class="fas fa-check-circle me-2"></i><?php echo htmlspecialchars($success); ?>
+    <div class="mt-2">
+        <a href="dashboard.php?box=<?php echo $receipt['box_id']; ?>" class="btn btn-success btn-sm">
+            <i class="fas fa-tachometer-alt me-1"></i>Back to Dashboard
+        </a>
+    </div>
 </div>
 <?php endif; ?>
 
@@ -281,9 +240,10 @@ include 'header.php';
                 ?>
                 <img src="<?php echo htmlspecialchars($receipt['file_path']); ?>" 
                      alt="Receipt" 
-                     class="receipt-image">
+                     class="receipt-image"
+                     onclick="openImageModal('<?php echo htmlspecialchars($receipt['file_path']); ?>', '<?php echo htmlspecialchars($receipt['title']); ?>')">
                 <div class="mt-2">
-                    <small class="text-muted">Receipt Image</small>
+                    <small class="text-muted">Click to view full size</small>
                 </div>
                 <?php else: ?>
                 <div class="card p-4 text-center">
@@ -338,7 +298,20 @@ include 'header.php';
                         <label class="form-label fw-semibold">Category</label>
                         <input type="text" class="form-control" name="category" 
                                value="<?php echo htmlspecialchars($receipt['category']); ?>"
-                               placeholder="e.g., Office Supplies, Meals, Travel">
+                               placeholder="e.g., Office Supplies, Meals, Travel"
+                               list="categoryList">
+                        <datalist id="categoryList">
+                            <option value="Office Supplies">
+                            <option value="Meals & Entertainment">
+                            <option value="Travel">
+                            <option value="Equipment">
+                            <option value="Utilities">
+                            <option value="Marketing">
+                            <option value="Professional Services">
+                            <option value="Software">
+                            <option value="Insurance">
+                            <option value="Maintenance">
+                        </datalist>
                     </div>
                     
                     <div class="col-md-6 mb-3">
@@ -357,17 +330,18 @@ include 'header.php';
                 
                 <div class="mb-4">
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" 
+                        <input class="form-check-input status-toggle" type="checkbox" 
                                name="is_logged" id="isLogged" 
                                <?php echo $receipt['is_logged'] ? 'checked' : ''; ?>>
                         <label class="form-check-label fw-semibold" for="isLogged">
                             <i class="fas fa-check-circle text-success me-2"></i>
                             Mark as Logged
                         </label>
+                        <div class="form-text">
+                            Check this box if you've already recorded this expense in your accounting system.
+                        </div>
                     </div>
                 </div>
-                
-                <input type="hidden" name="update_receipt" value="1">
                 
                 <div class="d-flex gap-3">
                     <button type="submit" class="btn btn-primary btn-lg flex-fill">
@@ -380,7 +354,227 @@ include 'header.php';
                 </div>
             </form>
         </div>
+        
+        <!-- Danger Zone -->
+        <div class="card border-danger mt-4">
+            <div class="card-header bg-danger text-white">
+                <h6 class="mb-0">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Danger Zone
+                </h6>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">
+                    Permanently delete this receipt. This action cannot be undone.
+                </p>
+                <button class="btn btn-outline-danger" onclick="confirmDelete()">
+                    <i class="fas fa-trash me-2"></i>Delete Receipt
+                </button>
+            </div>
+        </div>
     </div>
 </div>
+
+<!-- Image Modal -->
+<div class="modal fade" id="imageModal" tabindex="-1">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content bg-dark">
+            <div class="modal-header border-0">
+                <h5 class="modal-title text-white" id="imageModalTitle">Receipt Preview</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body d-flex align-items-center justify-content-center p-0">
+                <img id="modalImage" src="" alt="Receipt" class="img-fluid">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Confirm Deletion
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center py-3">
+                    <i class="fas fa-trash fa-3x text-danger mb-3"></i>
+                    <h5>Are you sure you want to delete this receipt?</h5>
+                    <p class="text-muted">
+                        This will permanently delete "<strong><?php echo htmlspecialchars($receipt['title']); ?></strong>" 
+                        and its associated file. This action cannot be undone.
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-danger" onclick="deleteReceipt()">
+                    <i class="fas fa-trash me-2"></i>Delete Permanently
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Image modal functionality
+function openImageModal(imagePath, title) {
+    document.getElementById('modalImage').src = imagePath;
+    document.getElementById('imageModalTitle').textContent = title;
+    new bootstrap.Modal(document.getElementById('imageModal')).show();
+}
+
+// Delete confirmation
+function confirmDelete() {
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+
+function deleteReceipt() {
+    const deleteBtn = event.target;
+    deleteBtn.disabled = true;
+    deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Deleting...';
+    
+    fetch('actions.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `action=delete_receipt&receipt_id=<?php echo $receipt_id; ?>`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = 'dashboard.php?box=<?php echo $receipt['box_id']; ?>';
+        } else {
+            alert('Error: ' + data.message);
+            deleteBtn.disabled = false;
+            deleteBtn.innerHTML = '<i class="fas fa-trash me-2"></i>Delete Permanently';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while deleting the receipt.');
+        deleteBtn.disabled = false;
+        deleteBtn.innerHTML = '<i class="fas fa-trash me-2"></i>Delete Permanently';
+    });
+}
+
+// Form enhancement
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-save draft functionality
+    const form = document.querySelector('form');
+    const inputs = form.querySelectorAll('input, textarea, select');
+    
+    inputs.forEach(input => {
+        input.addEventListener('input', debounce(saveDraft, 1000));
+    });
+    
+    function saveDraft() {
+        const formData = new FormData(form);
+        const draftData = {};
+        
+        for (let [key, value] of formData.entries()) {
+            draftData[key] = value;
+        }
+        
+        localStorage.setItem('receipt_edit_draft_<?php echo $receipt_id; ?>', JSON.stringify(draftData));
+    }
+    
+    // Clear draft on successful save
+    form.addEventListener('submit', function() {
+        localStorage.removeItem('receipt_edit_draft_<?php echo $receipt_id; ?>');
+    });
+    
+    // Debounce function
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+    
+    // Smart category suggestions based on vendor
+    const vendorInput = document.querySelector('input[name="vendor"]');
+    const categoryInput = document.querySelector('input[name="category"]');
+    
+    const vendorCategoryMap = {
+        'amazon': 'Office Supplies',
+        'staples': 'Office Supplies',
+        'office depot': 'Office Supplies',
+        'starbucks': 'Meals & Entertainment',
+        'mcdonalds': 'Meals & Entertainment',
+        'subway': 'Meals & Entertainment',
+        'uber': 'Travel',
+        'lyft': 'Travel',
+        'shell': 'Travel',
+        'exxon': 'Travel',
+        'microsoft': 'Software',
+        'adobe': 'Software',
+        'google': 'Software',
+        'verizon': 'Utilities',
+        'at&t': 'Utilities',
+        'comcast': 'Utilities'
+    };
+    
+    if (vendorInput && categoryInput) {
+        vendorInput.addEventListener('blur', function() {
+            const vendor = this.value.toLowerCase();
+            if (!categoryInput.value && vendor) {
+                for (const [key, category] of Object.entries(vendorCategoryMap)) {
+                    if (vendor.includes(key)) {
+                        categoryInput.value = category;
+                        break;
+                    }
+                }
+            }
+        });
+    }
+    
+    // Form validation
+    form.addEventListener('submit', function(e) {
+        const title = document.querySelector('input[name="title"]').value.trim();
+        if (!title) {
+            e.preventDefault();
+            alert('Please enter a title for the receipt.');
+            document.querySelector('input[name="title"]').focus();
+            return false;
+        }
+        
+        // Show loading state
+        const submitBtn = document.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+        }
+    });
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Ctrl+S or Cmd+S to save
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        document.querySelector('button[type="submit"]').click();
+    }
+    
+    // Escape to cancel
+    if (e.key === 'Escape') {
+        const modals = document.querySelectorAll('.modal.show');
+        if (modals.length === 0) {
+            window.location.href = 'dashboard.php?box=<?php echo $receipt['box_id']; ?>';
+        }
+    }
+});
+</script>
 
 <?php include 'footer.php'; ?>
