@@ -147,7 +147,7 @@ $debug_info['php_config'] = [
 
 // Check database connection
 try {
-    $stmt = $pdo->query("SELECT CONNECTION_ID(), NOW() as current_time");
+    $stmt = $pdo->query("SELECT CONNECTION_ID(), NOW() as db_current_time");
     $db_info = $stmt->fetch();
     $debug_info['database_connection'] = $db_info;
 } catch (Exception $e) {
