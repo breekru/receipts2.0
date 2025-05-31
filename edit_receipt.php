@@ -1,6 +1,15 @@
 <?php
 // edit_receipt.php - Fixed version with better data persistence
 require_once 'config.php';
+// Force no caching
+header('Cache-Control: no-cache, no-store, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: Thu, 01 Jan 1970 00:00:00 GMT');
+
+// Clear any output buffers
+if (ob_get_level()) {
+    ob_clean();
+}
 require_login();
 
 $user_id = get_current_user_id();
