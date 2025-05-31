@@ -1,5 +1,5 @@
 <?php
-// edit_receipt.php - Edit receipt details
+// edit_receipt.php - Fixed version with better data persistence
 require_once 'config.php';
 require_login();
 
@@ -10,21 +10,29 @@ if (!$receipt_id) {
     redirect('dashboard.php', 'Invalid receipt ID.', 'error');
 }
 
-// Get receipt with permission check
-$stmt = $pdo->prepare("
-    SELECT r.*, rb.name as box_name, rb.owner_id,
-           CASE 
-               WHEN rb.owner_id = ? THEN 'owner'
-               WHEN bs.can_edit = 1 THEN 'editor'
-               ELSE 'viewer'
-           END as access_level
-    FROM receipts r 
-    JOIN receipt_boxes rb ON r.box_id = rb.id 
-    LEFT JOIN box_shares bs ON rb.id = bs.box_id AND bs.user_id = ?
-    WHERE r.id = ? AND (rb.owner_id = ? OR bs.user_id = ?)
-");
-$stmt->execute([$user_id, $user_id, $receipt_id, $user_id, $user_id]);
-$receipt = $stmt->fetch();
+$error = '';
+$success = '';
+
+// Function to get fresh receipt data
+function getReceiptData($pdo, $receipt_id, $user_id) {
+    $stmt = $pdo->prepare("
+        SELECT r.*, rb.name as box_name, rb.owner_id,
+               CASE 
+                   WHEN rb.owner_id = ? THEN 'owner'
+                   WHEN bs.can_edit = 1 THEN 'editor'
+                   ELSE 'viewer'
+               END as access_level
+        FROM receipts r 
+        JOIN receipt_boxes rb ON r.box_id = rb.id 
+        LEFT JOIN box_shares bs ON rb.id = bs.box_id AND bs.user_id = ?
+        WHERE r.id = ? AND (rb.owner_id = ? OR bs.user_id = ?)
+    ");
+    $stmt->execute([$user_id, $user_id, $receipt_id, $user_id, $user_id]);
+    return $stmt->fetch();
+}
+
+// Get initial receipt data
+$receipt = getReceiptData($pdo, $receipt_id, $user_id);
 
 if (!$receipt) {
     redirect('dashboard.php', 'Receipt not found or access denied.', 'error');
@@ -34,23 +42,28 @@ if ($receipt['access_level'] === 'viewer') {
     redirect('dashboard.php', 'You do not have permission to edit this receipt.', 'error');
 }
 
-$error = '';
-$success = '';
-
 // Handle form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'])) {
-    try {
-        $title = clean_input($_POST['title'] ?? '');
-        $description = clean_input($_POST['description'] ?? '');
-        $amount = !empty($_POST['amount']) ? (float)$_POST['amount'] : null;
-        $receipt_date = !empty($_POST['receipt_date']) ? $_POST['receipt_date'] : null;
-        $category = clean_input($_POST['category'] ?? '');
-        $vendor = clean_input($_POST['vendor'] ?? '');
-        $is_logged = isset($_POST['is_logged']) ? 1 : 0;
-        
-        if (empty($title)) {
-            $error = 'Receipt title is required.';
-        } else {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title']) && isset($_POST['csrf_token'])) {
+    // CSRF protection
+    if (!hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
+        $error = 'Invalid security token. Please try again.';
+    } else {
+        try {
+            // Start transaction for data consistency
+            $pdo->beginTransaction();
+            
+            $title = clean_input($_POST['title'] ?? '');
+            $description = clean_input($_POST['description'] ?? '');
+            $amount = !empty($_POST['amount']) ? (float)$_POST['amount'] : null;
+            $receipt_date = !empty($_POST['receipt_date']) ? $_POST['receipt_date'] : null;
+            $category = clean_input($_POST['category'] ?? '');
+            $vendor = clean_input($_POST['vendor'] ?? '');
+            $is_logged = isset($_POST['is_logged']) ? 1 : 0;
+            
+            if (empty($title)) {
+                throw new Exception('Receipt title is required.');
+            }
+            
             // Verify permission again before update
             $perm_stmt = $pdo->prepare("
                 SELECT COUNT(*) as can_edit 
@@ -63,50 +76,97 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'])) {
             $can_edit = $perm_stmt->fetchColumn();
             
             if (!$can_edit) {
-                $error = 'Permission denied to edit this receipt.';
-            } else {
-                $stmt = $pdo->prepare("
-                    UPDATE receipts 
-                    SET title = ?, description = ?, amount = ?, receipt_date = ?, 
-                        category = ?, vendor = ?, is_logged = ?
-                    WHERE id = ?
-                ");
-                $result = $stmt->execute([$title, $description, $amount, $receipt_date, $category, $vendor, $is_logged, $receipt_id]);
-                
-                if ($result) {
-                    $success = 'Receipt updated successfully!';
-                    
-                    // Refresh receipt data to show updated values
-                    $stmt = $pdo->prepare("
-                        SELECT r.*, rb.name as box_name, rb.owner_id,
-                               CASE 
-                                   WHEN rb.owner_id = ? THEN 'owner'
-                                   WHEN bs.can_edit = 1 THEN 'editor'
-                                   ELSE 'viewer'
-                               END as access_level
-                        FROM receipts r 
-                        JOIN receipt_boxes rb ON r.box_id = rb.id 
-                        LEFT JOIN box_shares bs ON rb.id = bs.box_id AND bs.user_id = ?
-                        WHERE r.id = ?
-                    ");
-                    $stmt->execute([$user_id, $user_id, $receipt_id]);
-                    $new_receipt = $stmt->fetch();
-                    
-                    if ($new_receipt) {
-                        $receipt = $new_receipt;
-                    }
-                } else {
-                    $error = 'Failed to update receipt. Please try again.';
-                }
+                throw new Exception('Permission denied to edit this receipt.');
             }
+            
+            // Update receipt with explicit field mapping
+            $stmt = $pdo->prepare("
+                UPDATE receipts 
+                SET title = ?, 
+                    description = ?, 
+                    amount = ?, 
+                    receipt_date = ?, 
+                    category = ?, 
+                    vendor = ?, 
+                    is_logged = ?,
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            
+            $result = $stmt->execute([
+                $title, 
+                $description, 
+                $amount, 
+                $receipt_date, 
+                $category, 
+                $vendor, 
+                $is_logged, 
+                $receipt_id
+            ]);
+            
+            if (!$result) {
+                throw new Exception('Database update failed: ' . implode(', ', $stmt->errorInfo()));
+            }
+            
+            $affected_rows = $stmt->rowCount();
+            if ($affected_rows === 0) {
+                // Check if receipt still exists
+                $check_stmt = $pdo->prepare("SELECT id FROM receipts WHERE id = ?");
+                $check_stmt->execute([$receipt_id]);
+                if (!$check_stmt->fetch()) {
+                    throw new Exception('Receipt no longer exists.');
+                }
+                // If receipt exists but no rows affected, data might be identical
+                error_log("Receipt update: No rows affected for receipt ID $receipt_id");
+            }
+            
+            // Commit transaction
+            $pdo->commit();
+            
+            // Clear any cached data
+            if (function_exists('opcache_invalidate')) {
+                opcache_invalidate(__FILE__);
+            }
+            
+            $success = 'Receipt updated successfully!';
+            
+            // Get fresh data after update to ensure we show current values
+            $receipt = getReceiptData($pdo, $receipt_id, $user_id);
+            
+            if (!$receipt) {
+                throw new Exception('Failed to reload receipt data after update.');
+            }
+            
+            // Log successful update
+            error_log("Receipt updated successfully: ID $receipt_id, User $user_id");
+            
+        } catch (Exception $e) {
+            // Rollback transaction on error
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            
+            error_log("Receipt update error: " . $e->getMessage());
+            $error = $e->getMessage();
+            
+            // Get fresh data even on error to ensure form shows current state
+            $receipt = getReceiptData($pdo, $receipt_id, $user_id);
         }
-    } catch (Exception $e) {
-        error_log("Receipt update error: " . $e->getMessage());
-        $error = 'Failed to update receipt. Please try again.';
     }
 }
 
+// Generate CSRF token
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 $page_title = 'Edit Receipt';
+
+// Add cache-busting headers
+header('Cache-Control: no-cache, no-store, must-revalidate');
+header('Pragma: no-cache');
+header('Expires: 0');
+
 include 'header.php';
 ?>
 
@@ -146,6 +206,11 @@ include 'header.php';
 
 .status-toggle {
     transform: scale(1.2);
+}
+
+.form-modified {
+    border-left: 4px solid #ffc107;
+    background-color: #fff3cd;
 }
 
 @media (max-width: 768px) {
@@ -199,37 +264,35 @@ include 'header.php';
             <div class="receipt-info-card">
                 <div class="d-flex justify-content-between align-items-start mb-3">
                     <div>
-                        <h5 class="mb-1"><?php echo htmlspecialchars($receipt['title']); ?></h5>
+                        <h5 class="mb-1" id="preview-title"><?php echo htmlspecialchars($receipt['title']); ?></h5>
                         <small class="opacity-75">
                             <i class="fas fa-calendar me-1"></i>
-                            <?php echo $receipt['receipt_date'] ? date('M j, Y', strtotime($receipt['receipt_date'])) : 'No date'; ?>
+                            <span id="preview-date"><?php echo $receipt['receipt_date'] ? date('M j, Y', strtotime($receipt['receipt_date'])) : 'No date'; ?></span>
                         </small>
                     </div>
                     <div class="text-end">
-                        <?php if ($receipt['amount']): ?>
-                        <div class="h4 mb-0">$<?php echo number_format($receipt['amount'], 2); ?></div>
-                        <?php endif; ?>
+                        <div class="h4 mb-0" id="preview-amount">
+                            <?php echo $receipt['amount'] ? '$' . number_format($receipt['amount'], 2) : 'No amount'; ?>
+                        </div>
                         <small class="opacity-75">
-                            <i class="fas fa-<?php echo $receipt['is_logged'] ? 'check-circle' : 'clock'; ?> me-1"></i>
-                            <?php echo $receipt['is_logged'] ? 'Logged' : 'Pending'; ?>
+                            <i class="fas fa-clock me-1" id="preview-status-icon"></i>
+                            <span id="preview-status"><?php echo $receipt['is_logged'] ? 'Logged' : 'Pending'; ?></span>
                         </small>
                     </div>
                 </div>
                 
-                <?php if ($receipt['vendor'] || $receipt['category']): ?>
                 <div class="d-flex gap-3 mb-3">
-                    <?php if ($receipt['vendor']): ?>
-                    <small><i class="fas fa-store me-1"></i><?php echo htmlspecialchars($receipt['vendor']); ?></small>
-                    <?php endif; ?>
-                    <?php if ($receipt['category']): ?>
-                    <small><i class="fas fa-tag me-1"></i><?php echo htmlspecialchars($receipt['category']); ?></small>
-                    <?php endif; ?>
+                    <small id="preview-vendor"><?php echo $receipt['vendor'] ? '<i class="fas fa-store me-1"></i>' . htmlspecialchars($receipt['vendor']) : ''; ?></small>
+                    <small id="preview-category"><?php echo $receipt['category'] ? '<i class="fas fa-tag me-1"></i>' . htmlspecialchars($receipt['category']) : ''; ?></small>
                 </div>
-                <?php endif; ?>
                 
                 <small class="opacity-75">
                     <i class="fas fa-clock me-1"></i>
                     Uploaded <?php echo date('M j, Y g:i A', strtotime($receipt['created_at'])); ?>
+                    <?php if (isset($receipt['updated_at']) && $receipt['updated_at'] && $receipt['updated_at'] !== $receipt['created_at']): ?>
+                    <br><i class="fas fa-edit me-1"></i>
+                    Updated <?php echo date('M j, Y g:i A', strtotime($receipt['updated_at'])); ?>
+                    <?php endif; ?>
                 </small>
             </div>
             
@@ -238,7 +301,7 @@ include 'header.php';
                 $ext = strtolower(pathinfo($receipt['file_name'], PATHINFO_EXTENSION));
                 if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif'])): 
                 ?>
-                <img src="<?php echo htmlspecialchars($receipt['file_path']); ?>" 
+                <img src="<?php echo htmlspecialchars($receipt['file_path']); ?>?v=<?php echo time(); ?>" 
                      alt="Receipt" 
                      class="receipt-image"
                      onclick="openImageModal('<?php echo htmlspecialchars($receipt['file_path']); ?>', '<?php echo htmlspecialchars($receipt['title']); ?>')">
@@ -264,14 +327,18 @@ include 'header.php';
         <div class="edit-form p-4">
             <h5 class="mb-4">
                 <i class="fas fa-pencil-alt text-primary me-2"></i>Receipt Details
+                <span id="unsaved-indicator" class="badge bg-warning ms-2 d-none">Unsaved Changes</span>
             </h5>
             
-            <form method="POST" action="edit_receipt.php?id=<?php echo $receipt_id; ?>">
+            <form method="POST" action="edit_receipt.php?id=<?php echo $receipt_id; ?>" id="editForm">
+                <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Title *</label>
-                    <input type="text" class="form-control" name="title" required
+                    <input type="text" class="form-control" name="title" id="title" required
                            value="<?php echo htmlspecialchars($receipt['title']); ?>"
-                           placeholder="e.g., Office Supplies - Staples">
+                           placeholder="e.g., Office Supplies - Staples"
+                           data-original="<?php echo htmlspecialchars($receipt['title']); ?>">
                 </div>
                 
                 <div class="row">
@@ -279,27 +346,30 @@ include 'header.php';
                         <label class="form-label fw-semibold">Amount</label>
                         <div class="input-group">
                             <span class="input-group-text">$</span>
-                            <input type="number" class="form-control" name="amount" 
+                            <input type="number" class="form-control" name="amount" id="amount"
                                    step="0.01" min="0" 
                                    value="<?php echo $receipt['amount'] ? number_format($receipt['amount'], 2, '.', '') : ''; ?>"
-                                   placeholder="0.00">
+                                   placeholder="0.00"
+                                   data-original="<?php echo $receipt['amount'] ? number_format($receipt['amount'], 2, '.', '') : ''; ?>">
                         </div>
                     </div>
                     
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-semibold">Date</label>
-                        <input type="date" class="form-control" name="receipt_date" 
-                               value="<?php echo $receipt['receipt_date']; ?>">
+                        <input type="date" class="form-control" name="receipt_date" id="receipt_date"
+                               value="<?php echo $receipt['receipt_date']; ?>"
+                               data-original="<?php echo $receipt['receipt_date']; ?>">
                     </div>
                 </div>
                 
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-semibold">Category</label>
-                        <input type="text" class="form-control" name="category" 
+                        <input type="text" class="form-control" name="category" id="category"
                                value="<?php echo htmlspecialchars($receipt['category']); ?>"
                                placeholder="e.g., Office Supplies, Meals, Travel"
-                               list="categoryList">
+                               list="categoryList"
+                               data-original="<?php echo htmlspecialchars($receipt['category']); ?>">
                         <datalist id="categoryList">
                             <option value="Office Supplies">
                             <option value="Meals & Entertainment">
@@ -316,23 +386,26 @@ include 'header.php';
                     
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-semibold">Vendor</label>
-                        <input type="text" class="form-control" name="vendor" 
+                        <input type="text" class="form-control" name="vendor" id="vendor"
                                value="<?php echo htmlspecialchars($receipt['vendor']); ?>"
-                               placeholder="e.g., Amazon, Walmart, Starbucks">
+                               placeholder="e.g., Amazon, Walmart, Starbucks"
+                               data-original="<?php echo htmlspecialchars($receipt['vendor']); ?>">
                     </div>
                 </div>
                 
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Description</label>
-                    <textarea class="form-control" name="description" rows="3" 
-                              placeholder="Additional notes about this receipt"><?php echo htmlspecialchars($receipt['description']); ?></textarea>
+                    <textarea class="form-control" name="description" id="description" rows="3" 
+                              placeholder="Additional notes about this receipt"
+                              data-original="<?php echo htmlspecialchars($receipt['description']); ?>"><?php echo htmlspecialchars($receipt['description']); ?></textarea>
                 </div>
                 
                 <div class="mb-4">
                     <div class="form-check">
                         <input class="form-check-input status-toggle" type="checkbox" 
                                name="is_logged" id="isLogged" 
-                               <?php echo $receipt['is_logged'] ? 'checked' : ''; ?>>
+                               <?php echo $receipt['is_logged'] ? 'checked' : ''; ?>
+                               data-original="<?php echo $receipt['is_logged'] ? '1' : '0'; ?>">
                         <label class="form-check-label fw-semibold" for="isLogged">
                             <i class="fas fa-check-circle text-success me-2"></i>
                             Mark as Logged
@@ -344,11 +417,11 @@ include 'header.php';
                 </div>
                 
                 <div class="d-flex gap-3">
-                    <button type="submit" class="btn btn-primary btn-lg flex-fill">
+                    <button type="submit" class="btn btn-primary btn-lg flex-fill" id="saveBtn">
                         <i class="fas fa-save me-2"></i>Save Changes
                     </button>
                     <a href="dashboard.php?box=<?php echo $receipt['box_id']; ?>" 
-                       class="btn btn-outline-secondary btn-lg">
+                       class="btn btn-outline-secondary btn-lg" id="cancelBtn">
                         <i class="fas fa-times me-1"></i>Cancel
                     </a>
                 </div>
@@ -422,9 +495,189 @@ include 'header.php';
 </div>
 
 <script>
+let formModified = false;
+let originalFormData = {};
+
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('editForm');
+    const inputs = form.querySelectorAll('input, textarea, select');
+    const unsavedIndicator = document.getElementById('unsaved-indicator');
+    const saveBtn = document.getElementById('saveBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    
+    // Store original form data
+    inputs.forEach(input => {
+        if (input.type === 'checkbox') {
+            originalFormData[input.name] = input.checked;
+        } else {
+            originalFormData[input.name] = input.value;
+        }
+    });
+    
+    // Monitor form changes
+    inputs.forEach(input => {
+        input.addEventListener('input', function() {
+            checkFormModified();
+            updatePreview();
+        });
+        
+        input.addEventListener('change', function() {
+            checkFormModified();
+            updatePreview();
+        });
+    });
+    
+    function checkFormModified() {
+        let modified = false;
+        inputs.forEach(input => {
+            let currentValue, originalValue;
+            
+            if (input.type === 'checkbox') {
+                currentValue = input.checked;
+                originalValue = originalFormData[input.name];
+            } else {
+                currentValue = input.value;
+                originalValue = originalFormData[input.name] || '';
+            }
+            
+            if (currentValue !== originalValue) {
+                modified = true;
+            }
+        });
+        
+        formModified = modified;
+        
+        if (modified) {
+            unsavedIndicator.classList.remove('d-none');
+            saveBtn.innerHTML = '<i class="fas fa-save me-2"></i>Save Changes*';
+            form.classList.add('form-modified');
+        } else {
+            unsavedIndicator.classList.add('d-none');
+            saveBtn.innerHTML = '<i class="fas fa-save me-2"></i>Save Changes';
+            form.classList.remove('form-modified');
+        }
+    }
+    
+    function updatePreview() {
+        // Update live preview
+        const title = document.getElementById('title').value;
+        const amount = document.getElementById('amount').value;
+        const receiptDate = document.getElementById('receipt_date').value;
+        const category = document.getElementById('category').value;
+        const vendor = document.getElementById('vendor').value;
+        const isLogged = document.getElementById('isLogged').checked;
+        
+        document.getElementById('preview-title').textContent = title || 'Untitled Receipt';
+        
+        if (amount) {
+            document.getElementById('preview-amount').textContent = '$' + parseFloat(amount).toFixed(2);
+        } else {
+            document.getElementById('preview-amount').textContent = 'No amount';
+        }
+        
+        if (receiptDate) {
+            const date = new Date(receiptDate);
+            document.getElementById('preview-date').textContent = date.toLocaleDateString('en-US', {
+                month: 'short', day: 'numeric', year: 'numeric'
+            });
+        } else {
+            document.getElementById('preview-date').textContent = 'No date';
+        }
+        
+        document.getElementById('preview-vendor').innerHTML = vendor ? 
+            `<i class="fas fa-store me-1"></i>${vendor}` : '';
+        document.getElementById('preview-category').innerHTML = category ? 
+            `<i class="fas fa-tag me-1"></i>${category}` : '';
+        
+        const statusIcon = document.getElementById('preview-status-icon');
+        const statusText = document.getElementById('preview-status');
+        if (isLogged) {
+            statusIcon.className = 'fas fa-check-circle me-1';
+            statusText.textContent = 'Logged';
+        } else {
+            statusIcon.className = 'fas fa-clock me-1';
+            statusText.textContent = 'Pending';
+        }
+    }
+    
+    // Warn about unsaved changes
+    window.addEventListener('beforeunload', function(e) {
+        if (formModified) {
+            e.preventDefault();
+            e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+            return e.returnValue;
+        }
+    });
+    
+    // Handle cancel button
+    cancelBtn.addEventListener('click', function(e) {
+        if (formModified) {
+            if (!confirm('You have unsaved changes. Are you sure you want to cancel?')) {
+                e.preventDefault();
+                return false;
+            }
+        }
+    });
+    
+    // Form submission
+    form.addEventListener('submit', function(e) {
+        const title = document.getElementById('title').value.trim();
+        if (!title) {
+            e.preventDefault();
+            alert('Please enter a title for the receipt.');
+            document.getElementById('title').focus();
+            return false;
+        }
+        
+        // Show loading state
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+        
+        // Clear unsaved changes flag
+        formModified = false;
+    });
+    
+    // Smart category suggestions based on vendor
+    const vendorInput = document.getElementById('vendor');
+    const categoryInput = document.getElementById('category');
+    
+    const vendorCategoryMap = {
+        'amazon': 'Office Supplies',
+        'staples': 'Office Supplies',
+        'office depot': 'Office Supplies',
+        'starbucks': 'Meals & Entertainment',
+        'mcdonalds': 'Meals & Entertainment',
+        'subway': 'Meals & Entertainment',
+        'uber': 'Travel',
+        'lyft': 'Travel',
+        'shell': 'Travel',
+        'exxon': 'Travel',
+        'microsoft': 'Software',
+        'adobe': 'Software',
+        'google': 'Software',
+        'verizon': 'Utilities',
+        'at&t': 'Utilities',
+        'comcast': 'Utilities'
+    };
+    
+    vendorInput.addEventListener('blur', function() {
+        const vendor = this.value.toLowerCase();
+        if (!categoryInput.value && vendor) {
+            for (const [key, category] of Object.entries(vendorCategoryMap)) {
+                if (vendor.includes(key)) {
+                    categoryInput.value = category;
+                    checkFormModified();
+                    updatePreview();
+                    break;
+                }
+            }
+        }
+    });
+});
+
 // Image modal functionality
 function openImageModal(imagePath, title) {
-    document.getElementById('modalImage').src = imagePath;
+    document.getElementById('modalImage').src = imagePath + '?v=' + Date.now();
     document.getElementById('imageModalTitle').textContent = title;
     new bootstrap.Modal(document.getElementById('imageModal')).show();
 }
@@ -449,6 +702,8 @@ function deleteReceipt() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            // Clear unsaved changes flag before redirect
+            formModified = false;
             window.location.href = 'dashboard.php?box=<?php echo $receipt['box_id']; ?>';
         } else {
             alert('Error: ' + data.message);
@@ -464,114 +719,25 @@ function deleteReceipt() {
     });
 }
 
-// Form enhancement
-document.addEventListener('DOMContentLoaded', function() {
-    // Auto-save draft functionality
-    const form = document.querySelector('form');
-    const inputs = form.querySelectorAll('input, textarea, select');
-    
-    inputs.forEach(input => {
-        input.addEventListener('input', debounce(saveDraft, 1000));
-    });
-    
-    function saveDraft() {
-        const formData = new FormData(form);
-        const draftData = {};
-        
-        for (let [key, value] of formData.entries()) {
-            draftData[key] = value;
-        }
-        
-        localStorage.setItem('receipt_edit_draft_<?php echo $receipt_id; ?>', JSON.stringify(draftData));
-    }
-    
-    // Clear draft on successful save
-    form.addEventListener('submit', function() {
-        localStorage.removeItem('receipt_edit_draft_<?php echo $receipt_id; ?>');
-    });
-    
-    // Debounce function
-    function debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
-    }
-    
-    // Smart category suggestions based on vendor
-    const vendorInput = document.querySelector('input[name="vendor"]');
-    const categoryInput = document.querySelector('input[name="category"]');
-    
-    const vendorCategoryMap = {
-        'amazon': 'Office Supplies',
-        'staples': 'Office Supplies',
-        'office depot': 'Office Supplies',
-        'starbucks': 'Meals & Entertainment',
-        'mcdonalds': 'Meals & Entertainment',
-        'subway': 'Meals & Entertainment',
-        'uber': 'Travel',
-        'lyft': 'Travel',
-        'shell': 'Travel',
-        'exxon': 'Travel',
-        'microsoft': 'Software',
-        'adobe': 'Software',
-        'google': 'Software',
-        'verizon': 'Utilities',
-        'at&t': 'Utilities',
-        'comcast': 'Utilities'
-    };
-    
-    if (vendorInput && categoryInput) {
-        vendorInput.addEventListener('blur', function() {
-            const vendor = this.value.toLowerCase();
-            if (!categoryInput.value && vendor) {
-                for (const [key, category] of Object.entries(vendorCategoryMap)) {
-                    if (vendor.includes(key)) {
-                        categoryInput.value = category;
-                        break;
-                    }
-                }
-            }
-        });
-    }
-    
-    // Form validation
-    form.addEventListener('submit', function(e) {
-        const title = document.querySelector('input[name="title"]').value.trim();
-        if (!title) {
-            e.preventDefault();
-            alert('Please enter a title for the receipt.');
-            document.querySelector('input[name="title"]').focus();
-            return false;
-        }
-        
-        // Show loading state
-        const submitBtn = document.querySelector('button[type="submit"]');
-        if (submitBtn) {
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
-        }
-    });
-});
-
 // Keyboard shortcuts
 document.addEventListener('keydown', function(e) {
     // Ctrl+S or Cmd+S to save
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        document.querySelector('button[type="submit"]').click();
+        document.getElementById('saveBtn').click();
     }
     
     // Escape to cancel
     if (e.key === 'Escape') {
         const modals = document.querySelectorAll('.modal.show');
         if (modals.length === 0) {
-            window.location.href = 'dashboard.php?box=<?php echo $receipt['box_id']; ?>';
+            if (formModified) {
+                if (confirm('You have unsaved changes. Are you sure you want to leave?')) {
+                    window.location.href = 'dashboard.php?box=<?php echo $receipt['box_id']; ?>';
+                }
+            } else {
+                window.location.href = 'dashboard.php?box=<?php echo $receipt['box_id']; ?>';
+            }
         }
     }
 });

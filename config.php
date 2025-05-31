@@ -1,5 +1,5 @@
 <?php
-// config.php - Enhanced configuration with better session handling
+// config.php - Enhanced configuration with better session and cache handling
 // Set session configuration before starting session
 ini_set('session.gc_maxlifetime', 1800); // 30 minutes
 ini_set('session.cookie_lifetime', 0); // Until browser closes
@@ -7,7 +7,19 @@ ini_set('session.use_strict_mode', 1);
 ini_set('session.cookie_httponly', 1);
 ini_set('session.cookie_secure', isset($_SERVER['HTTPS']));
 
+// Disable output caching for dynamic pages
+ini_set('session.cache_limiter', 'nocache');
+ini_set('session.cache_expire', 0);
+
 session_start();
+
+// Add cache-busting headers for edit pages
+if (strpos($_SERVER['REQUEST_URI'], 'edit_receipt.php') !== false) {
+    header('Cache-Control: no-cache, no-store, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    header('Expires: Thu, 01 Jan 1970 00:00:00 GMT');
+    header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT');
+}
 
 // Check for session timeout
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 1800)) {
@@ -28,7 +40,7 @@ $username = 'logit_user';
 $password = 'aycbkdTs*3kw2NLuFaD*';  
 $database = 'receiptV2';
 
-// Create PDO connection with retry logic
+// Create PDO connection with retry logic and better error handling
 $pdo = null;
 $max_retries = 3;
 $retry_count = 0;
@@ -40,11 +52,16 @@ while ($retry_count < $max_retries && $pdo === null) {
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_TIMEOUT => 10,
             PDO::ATTR_PERSISTENT => false,
-            PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
+            PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4",
+            PDO::ATTR_EMULATE_PREPARES => false, // Use real prepared statements
+            PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true
         ]);
         
         // Test the connection
         $pdo->query("SELECT 1");
+        
+        // Set SQL mode for consistent behavior
+        $pdo->exec("SET sql_mode = 'STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO'");
         
     } catch (PDOException $e) {
         $retry_count++;
@@ -116,9 +133,6 @@ while ($retry_count < $max_retries && $pdo === null) {
                     <button onclick="location.reload()" class="btn btn-light me-2">
                         <i class="fas fa-refresh me-2"></i>Try Again
                     </button>
-                    <a href="db_test.php" class="btn btn-light">
-                        <i class="fas fa-tools me-2"></i>Test Database
-                    </a>
                 </div>
             </body>
             </html>
@@ -175,6 +189,10 @@ function redirect($url, $message = '', $type = 'info') {
     // Prevent header injection
     $url = filter_var($url, FILTER_SANITIZE_URL);
     
+    // Add cache busting to redirects
+    $separator = strpos($url, '?') !== false ? '&' : '?';
+    $url .= $separator . '_t=' . time();
+    
     header("Location: $url");
     exit;
 }
@@ -200,6 +218,24 @@ function handle_ajax_error($message, $code = 400) {
         echo json_encode(['success' => false, 'message' => $message]);
         exit;
     }
+}
+
+// Clear any PHP output caching
+function clear_all_caches() {
+    // Clear output buffer if exists
+    if (ob_get_level()) {
+        ob_clean();
+    }
+    
+    // Clear opcache if available
+    if (function_exists('opcache_reset')) {
+        opcache_reset();
+    }
+    
+    // Send headers to prevent caching
+    header('Cache-Control: no-cache, no-store, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    header('Expires: Thu, 01 Jan 1970 00:00:00 GMT');
 }
 
 // FIXED: Check for suspicious activity
@@ -249,5 +285,10 @@ if (is_logged_in()) {
 // Call security check for non-static requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST' || isset($_GET['action'])) {
     check_security();
+}
+
+// Force fresh data on edit pages
+if (strpos($_SERVER['REQUEST_URI'], 'edit_receipt.php') !== false) {
+    clear_all_caches();
 }
 ?>
