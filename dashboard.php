@@ -449,7 +449,7 @@ include 'header.php';
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="stats-number text-success"><?php echo number_format($stats['logged']); ?></div>
+                        <div class="stats-number text-success"><?php echo number_format($stats['logged'] ?? 0); ?></div>
                         <p class="stats-label">Logged</p>
                     </div>
                     <i class="fas fa-check-circle stats-icon text-success"></i>
@@ -463,7 +463,7 @@ include 'header.php';
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="stats-number text-warning"><?php echo number_format($stats['pending']); ?></div>
+                        <div class="stats-number text-warning"><?php echo number_format($stats['pending'] ?? 0); ?></div>
                         <p class="stats-label">Pending</p>
                     </div>
                     <i class="fas fa-clock stats-icon text-warning"></i>
