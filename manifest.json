@@ -10,29 +10,59 @@
   "scope": "/",
   "icons": [
     {
-      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNzIiIGhlaWdodD0iNzIiIHZpZXdCb3g9IjAgMCA3MiA3MiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjcyIiBoZWlnaHQ9IjcyIiByeD0iMTYiIGZpbGw9InVybCgjZ3JhZGllbnQwX2xpbmVhcl8xXzEpIi8+CjxwYXRoIGQ9Ik0yMCAxOEg1MkM1My4xIDQ2IDU0IDQ3LjEgNTQgNDhWNTBDNTQgNTEuMSA1My4xIDUyIDUyIDUySDIwQzE4LjkgNTIgMTggNTEuMSAxOCA1MFYyMEMxOCAxOC45IDE4LjkgMTggMjAgMThaIiBmaWxsPSJ3aGl0ZSIvPgo8cGF0aCBkPSJNMjIgMjZIMzBWMjhIMjJWMjZaIiBmaWxsPSIjZmQ3ZTE0Ii8+CjxwYXRoIGQ9Ik0yMiAzMEg0OFYzMkgyMlYzMFoiIGZpbGw9IiNmZDdlMTQiLz4KPHA+RGVmczxsaW5lYXJHcmFkaWVudCBpZD0iZ3JhZGllbnQwX2xpbmVhcl8xXzEiIHgxPSIwIiB5MT0iMCIgeDI9IjcyIiB5Mj0iNzIiPjxzdG9wIHN0b3AtY29sb3I9IiMwZDZlZmQiLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiM2NjEwZjIiLz48L2xpbmVhckdyYWRpZW50Pjwvc3ZnPgo=",
+      "src": "icons/LogIt-72.png",
       "sizes": "72x72",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDE5MiAxOTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiByeD0iNDIiIGZpbGw9InVybCgjZ3JhZGllbnQwX2xpbmVhcl8xXzEpIi8+CjxwYXRoIGQ9Ik01MCA0OEgxNDJDMTQ0LjIgNDggMTQ2IDE0OS44IDE0NiAxNTJWMTU2QzE0NiAxNTguMiAxNDQuMiAxNjAgMTQyIDE2MEg1MEM0Nw44IDE2MCA0NiAxNTguMiA0NiAxNTZWNTJDNDYgNDkuOCA0Ny44IDQ4IDUwIDQ4WiIgZmlsbD0id2hpdGUiLz4KPHA+RGVmczxsaW5lYXJHcmFkaWVudCBpZD0iZ3JhZGllbnQwX2xpbmVhcl8xXzEiIHgxPSIwIiB5MT0iMCIgeDI9IjE5MiIgeTI9IjE5MiI+PHN0b3Agc3RvcC1jb2xvcj0iIzBkNmVmZCIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzY2MTBmMiIvPjwvbGluZWFyR3JhZGllbnQ+PC9zdmc+Cg==",
+      "src": "icons/LogIt-96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/LogIt-128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/LogIt-144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/LogIt-152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/LogIt-192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgdmlld0JveD0iMCAwIDUxMiA1MTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiByeD0iMTEyIiBmaWxsPSJ1cmwoI2dyYWRpZW50MF9saW5lYXJfMV8xKSIvPgo8cGF0aCBkPSJNMTMwIDEyOEgzODJDMzg2IDEyOCAzOTAgMzg2IDM5MCA0MDBWNDEyQzM5MCA0MjYgMzg2IDQzMCAzODIgNDMwSDEzMEMxMjYgNDMwIDEyMiA0MjYgMTIyIDQxMlYxMzhDMTIyIDEzNCAxMjYgMTMwIDEzMC",
+      "src": "icons/LogIt-384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/LogIt-512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ],
   "screenshots": [
     {
-      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzkwIiBoZWlnaHQ9Ijg0NCIgdmlld0JveD0iMCAwIDM5MCA4NDQiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIzOTAiIGhlaWdodD0iODQ0IiBmaWxsPSIjZjhmOWZhIi8+Cjx0ZXh0IHg9IjE5NSIgeT0iNDIyIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNmM3NTdkIiBmb250LXNpemU9IjI0Ij5Mb2dJdCBEYXNoYm9hcmQ8L3RleHQ+Cjwvc3ZnPgo=",
+      "src": "icons/screenshot-mobile.png",
       "sizes": "390x844",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "form_factor": "narrow",
       "label": "LogIt Dashboard on mobile"
     }
@@ -46,9 +76,9 @@
       "url": "/upload.php",
       "icons": [
         {
-          "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iOTYiIGhlaWdodD0iOTYiIHZpZXdCb3g9IjAgMCA5NiA5NiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHA+cmVjdCB3aWR0aD0iOTYiIGhlaWdodD0iOTYiIHJ4PSIyMCIgZmlsbD0iI2ZkN2UxNCIvPgo8cGF0aCBkPSJNNDggMzJWNjQiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CjxwYXRoIGQ9Ik0zMiA0OEg2NCIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSI0IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPC9zdmc+Cg==",
-          "sizes": "96x96",
-          "type": "image/svg+xml"
+          "src": "icons/LogIt-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
         }
       ]
     },
@@ -59,9 +89,9 @@
       "url": "/dashboard.php",
       "icons": [
         {
-          "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iOTYiIGhlaWdodD0iOTYiIHZpZXdCb3g9IjAgMCA5NiA5NiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHA+cmVjdCB3aWR0aD0iOTYiIGhlaWdodD0iOTYiIHJ4PSIyMCIgZmlsbD0iIzBkNmVmZCIvPgo8cGF0aCBkPSJNMjQgMzJINzJWNjRIMjRWMzJaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4K",
-          "sizes": "96x96",
-          "type": "image/svg+xml"
+          "src": "icons/LogIt-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
         }
       ]
     }

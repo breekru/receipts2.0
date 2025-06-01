@@ -14,8 +14,12 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="LogIt">
-    <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDE5MiAxOTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiByeD0iNDIiIGZpbGw9InVybCgjZ3JhZGllbnQwX2xpbmVhcl8xXzEpIi8+CjxwYXRoIGQ9Ik01MCA0OEgxNDJDMTQ0LjIgNDggMTQ2IDE0OS44IDE0NiAxNTJWMTU2QzE0NiAxNTguMiAxNDQuMiAxNjAgMTQyIDE2MEg1MEM0Nz44IDE2MCA0NiAxNTguMiA0NiAxNTZWNTJDNDYgNDkuOCA0Ny44IDQ4IDUwIDQ4WiIgZmlsbD0id2hpdGUiLz4KPHA+RGVmczxsaW5lYXJHcmFkaWVudCBpZD0iZ3JhZGllbnQwX2xpbmVhcl8xXzEiIHgxPSIwIiB5MT0iMCIgeDI9IjE5MiIgeTI9IjE5MiI+PHN0b3Agc3RvcC1jb2xvcj0iIzBkNmVmZCIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzY2MTBmMiIvPjwvbGluZWFyR3JhZGllbnQ+PC9zdmc+Cg==">
-    <style>
+    <link rel="apple-touch-icon" href="icons/LogIt-152.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/LogIt-72.png">
+    <link rel="icon" type="image/png" sizes="96x96" href="icons/LogIt-96.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/LogIt-192.png">
+    <link rel="shortcut icon" type="image/png" href="icons/LogIt-72.png">
+        <style>
         :root {
             --primary-color: #0d6efd;
             --accent-color: #fd7e14;
