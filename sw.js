@@ -1,5 +1,5 @@
-// sw.js - Service Worker for LogIt PWA
-const CACHE_NAME = 'logit-v1.0.2';
+// sw.js - Service Worker for LogIt PWA with fixed redirect handling
+const CACHE_NAME = 'logit-v1.0.3'; // Updated version for the fix
 const urlsToCache = [
     '/',
     '/index.php',
@@ -43,13 +43,58 @@ self.addEventListener('activate', (event) => {
     self.clients.claim();
 });
 
-// Fetch event - improved redirect handling
+// Fetch event - FIXED with proper redirect handling
 self.addEventListener('fetch', (event) => {
     // Skip non-GET requests and external resources
     if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) {
         return;
     }
     
+    // SPECIAL HANDLING for logout.php - always bypass cache and allow redirects
+    if (event.request.url.includes('logout.php')) {
+        event.respondWith(
+            fetch(event.request, {
+                redirect: 'manual', // Handle redirects manually
+                credentials: 'same-origin',
+                cache: 'no-cache'
+            }).then((response) => {
+                // If it's a redirect response, create a new response that the browser will follow
+                if (response.type === 'opaqueredirect' || 
+                    (response.status >= 300 && response.status < 400)) {
+                    // Let the browser handle the redirect naturally
+                    return Response.redirect(response.url || event.request.url, response.status);
+                }
+                return response;
+            }).catch((error) => {
+                console.error('Logout fetch failed:', error);
+                // Fallback: redirect to index.php
+                return Response.redirect('/index.php', 302);
+            })
+        );
+        return;
+    }
+    
+    // SPECIAL HANDLING for login/register pages - always fetch fresh
+    if (event.request.url.includes('login.php') || 
+        event.request.url.includes('register.php') ||
+        event.request.url.includes('actions.php')) {
+        event.respondWith(
+            fetch(event.request, {
+                redirect: 'follow',
+                credentials: 'same-origin',
+                cache: 'no-cache'
+            }).catch(() => {
+                // Return offline page for navigation requests
+                if (event.request.destination === 'document') {
+                    return getOfflinePage();
+                }
+                return new Response('Network error', { status: 408 });
+            })
+        );
+        return;
+    }
+    
+    // Regular caching logic for other requests
     event.respondWith(
         caches.match(event.request)
             .then((cachedResponse) => {
@@ -79,7 +124,8 @@ self.addEventListener('fetch', (event) => {
                         '/dashboard.php',
                         '/upload.php',
                         '/boxes.php',
-                        '/actions.php'
+                        '/actions.php',
+                        '/edit_receipt.php'
                     ];
                     
                     if (restrictedPages.some(page => url.pathname.includes(page))) {
@@ -101,215 +147,7 @@ self.addEventListener('fetch', (event) => {
                 }).catch(() => {
                     // Return offline page for navigation requests
                     if (event.request.destination === 'document') {
-                        return new Response(`
-                            <!DOCTYPE html>
-                            <html lang="en">
-                            <head>
-                                <title>LogIt - You're Offline</title>
-                                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                                <meta name="theme-color" content="#fd7e14">
-                                <style>
-                                    * {
-                                        box-sizing: border-box;
-                                        margin: 0;
-                                        padding: 0;
-                                    }
-                                    body { 
-                                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-                                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                                        color: white;
-                                        min-height: 100vh;
-                                        display: flex;
-                                        align-items: center;
-                                        justify-content: center;
-                                        padding: 20px;
-                                    }
-                                    .offline-container {
-                                        max-width: 400px;
-                                        text-align: center;
-                                        background: rgba(255, 255, 255, 0.1);
-                                        backdrop-filter: blur(20px);
-                                        border-radius: 20px;
-                                        padding: 3rem 2rem;
-                                        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-                                        border: 1px solid rgba(255, 255, 255, 0.2);
-                                    }
-                                    .offline-icon { 
-                                        font-size: 4rem; 
-                                        margin-bottom: 1.5rem;
-                                        opacity: 0.9;
-                                    }
-                                    h1 {
-                                        font-size: 2rem;
-                                        font-weight: 600;
-                                        margin-bottom: 1rem;
-                                        color: white;
-                                    }
-                                    p {
-                                        font-size: 1.1rem;
-                                        margin-bottom: 2rem;
-                                        color: rgba(255, 255, 255, 0.9);
-                                        line-height: 1.6;
-                                    }
-                                    .btn {
-                                        background: rgba(255, 255, 255, 0.2);
-                                        color: white;
-                                        padding: 0.75rem 2rem;
-                                        border: 2px solid rgba(255, 255, 255, 0.3);
-                                        border-radius: 25px;
-                                        text-decoration: none;
-                                        display: inline-block;
-                                        margin: 0.5rem;
-                                        cursor: pointer;
-                                        font-size: 1rem;
-                                        font-weight: 500;
-                                        transition: all 0.3s ease;
-                                        backdrop-filter: blur(10px);
-                                    }
-                                    .btn:hover {
-                                        background: rgba(255, 255, 255, 0.3);
-                                        border-color: rgba(255, 255, 255, 0.5);
-                                        transform: translateY(-2px);
-                                        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-                                    }
-                                    .btn-primary {
-                                        background: #fd7e14;
-                                        border-color: #fd7e14;
-                                    }
-                                    .btn-primary:hover {
-                                        background: #e67e22;
-                                        border-color: #e67e22;
-                                    }
-                                    .connection-status {
-                                        margin-top: 2rem;
-                                        padding: 1rem;
-                                        background: rgba(255, 255, 255, 0.1);
-                                        border-radius: 10px;
-                                        font-size: 0.9rem;
-                                    }
-                                    .status-indicator {
-                                        display: inline-block;
-                                        width: 10px;
-                                        height: 10px;
-                                        border-radius: 50%;
-                                        background: #dc3545;
-                                        margin-right: 0.5rem;
-                                        animation: pulse 2s infinite;
-                                    }
-                                    @keyframes pulse {
-                                        0% { opacity: 1; }
-                                        50% { opacity: 0.5; }
-                                        100% { opacity: 1; }
-                                    }
-                                    .logo {
-                                        font-size: 1.5rem;
-                                        font-weight: 700;
-                                        margin-bottom: 2rem;
-                                        color: #fd7e14;
-                                    }
-                                    
-                                    @media (max-width: 480px) {
-                                        .offline-container {
-                                            padding: 2rem 1.5rem;
-                                        }
-                                        h1 {
-                                            font-size: 1.75rem;
-                                        }
-                                        .offline-icon {
-                                            font-size: 3rem;
-                                        }
-                                        .btn {
-                                            padding: 0.75rem 1.5rem;
-                                            font-size: 0.9rem;
-                                        }
-                                    }
-                                </style>
-                            </head>
-                            <body>
-                                <div class="offline-container">
-                                    <div class="logo">📱 LogIt</div>
-                                    <div class="offline-icon">🌐</div>
-                                    <h1>You're Offline</h1>
-                                    <p>It looks like you're not connected to the internet. LogIt needs an internet connection to sync your receipts and access your account.</p>
-                                    
-                                    <button type="button" class="btn btn-primary" onclick="retryConnection()">
-                                        Try Again
-                                    </button>
-                                    <a href="/" class="btn">
-                                        Go to Home
-                                    </a>
-                                    
-                                    <div class="connection-status">
-                                        <span class="status-indicator" id="statusIndicator"></span>
-                                        <span id="statusText">Checking connection...</span>
-                                    </div>
-                                </div>
-                                
-                                <script>
-                                    let isOnline = navigator.onLine;
-                                    
-                                    function updateConnectionStatus() {
-                                        const indicator = document.getElementById('statusIndicator');
-                                        const statusText = document.getElementById('statusText');
-                                        
-                                        if (navigator.onLine) {
-                                            indicator.style.background = '#28a745';
-                                            statusText.textContent = 'Connection restored! You can reload the page.';
-                                        } else {
-                                            indicator.style.background = '#dc3545';
-                                            statusText.textContent = 'No internet connection detected.';
-                                        }
-                                    }
-                                    
-                                    function retryConnection() {
-                                        const btn = event.target;
-                                        btn.innerHTML = 'Checking...';
-                                        btn.disabled = true;
-                                        
-                                        // Try to reload the page
-                                        setTimeout(() => {
-                                            window.location.reload();
-                                        }, 1000);
-                                    }
-                                    
-                                    // Listen for connection changes
-                                    window.addEventListener('online', () => {
-                                        updateConnectionStatus();
-                                        setTimeout(() => {
-                                            window.location.reload();
-                                        }, 1500);
-                                    });
-                                    
-                                    window.addEventListener('offline', updateConnectionStatus);
-                                    
-                                    // Initial status check
-                                    updateConnectionStatus();
-                                    
-                                    // Periodic connection check
-                                    setInterval(() => {
-                                        fetch('/', { method: 'HEAD', cache: 'no-cache' })
-                                            .then(() => {
-                                                if (!isOnline) {
-                                                    isOnline = true;
-                                                    updateConnectionStatus();
-                                                }
-                                            })
-                                            .catch(() => {
-                                                if (isOnline) {
-                                                    isOnline = false;
-                                                    updateConnectionStatus();
-                                                }
-                                            });
-                                    }, 5000);
-                                </script>
-                            </body>
-                            </html>
-                        `, {
-                            headers: { 
-                                'Content-Type': 'text/html',
-                                'Cache-Control': 'no-cache'
-                            }
-                        });
+                        return getOfflinePage();
                     }
                     
                     // For other resources, just fail
@@ -318,6 +156,155 @@ self.addEventListener('fetch', (event) => {
             })
     );
 });
+
+// Helper function to get offline page
+function getOfflinePage() {
+    return new Response(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <title>LogIt - You're Offline</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta name="theme-color" content="#fd7e14">
+            <style>
+                * {
+                    box-sizing: border-box;
+                    margin: 0;
+                    padding: 0;
+                }
+                body { 
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    min-height: 100vh;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 20px;
+                }
+                .offline-container {
+                    max-width: 400px;
+                    text-align: center;
+                    background: rgba(255, 255, 255, 0.1);
+                    backdrop-filter: blur(20px);
+                    border-radius: 20px;
+                    padding: 3rem 2rem;
+                    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                }
+                .offline-icon { 
+                    font-size: 4rem; 
+                    margin-bottom: 1.5rem;
+                    opacity: 0.9;
+                }
+                h1 {
+                    font-size: 2rem;
+                    font-weight: 600;
+                    margin-bottom: 1rem;
+                    color: white;
+                }
+                p {
+                    font-size: 1.1rem;
+                    margin-bottom: 2rem;
+                    color: rgba(255, 255, 255, 0.9);
+                    line-height: 1.6;
+                }
+                .btn {
+                    background: rgba(255, 255, 255, 0.2);
+                    color: white;
+                    padding: 0.75rem 2rem;
+                    border: 2px solid rgba(255, 255, 255, 0.3);
+                    border-radius: 25px;
+                    text-decoration: none;
+                    display: inline-block;
+                    margin: 0.5rem;
+                    cursor: pointer;
+                    font-size: 1rem;
+                    font-weight: 500;
+                    transition: all 0.3s ease;
+                    backdrop-filter: blur(10px);
+                }
+                .btn:hover {
+                    background: rgba(255, 255, 255, 0.3);
+                    border-color: rgba(255, 255, 255, 0.5);
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+                }
+                .btn-primary {
+                    background: #fd7e14;
+                    border-color: #fd7e14;
+                }
+                .btn-primary:hover {
+                    background: #e67e22;
+                    border-color: #e67e22;
+                }
+                .logo {
+                    font-size: 1.5rem;
+                    font-weight: 700;
+                    margin-bottom: 2rem;
+                    color: #fd7e14;
+                }
+                
+                @media (max-width: 480px) {
+                    .offline-container {
+                        padding: 2rem 1.5rem;
+                    }
+                    h1 {
+                        font-size: 1.75rem;
+                    }
+                    .offline-icon {
+                        font-size: 3rem;
+                    }
+                    .btn {
+                        padding: 0.75rem 1.5rem;
+                        font-size: 0.9rem;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="offline-container">
+                <div class="logo">📱 LogIt</div>
+                <div class="offline-icon">🌐</div>
+                <h1>You're Offline</h1>
+                <p>It looks like you're not connected to the internet. LogIt needs an internet connection to sync your receipts and access your account.</p>
+                
+                <button type="button" class="btn btn-primary" onclick="retryConnection()">
+                    Try Again
+                </button>
+                <a href="/" class="btn">
+                    Go to Home
+                </a>
+            </div>
+            
+            <script>
+                function retryConnection() {
+                    const btn = event.target;
+                    btn.innerHTML = 'Checking...';
+                    btn.disabled = true;
+                    
+                    // Try to reload the page
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                }
+                
+                // Listen for connection changes
+                window.addEventListener('online', () => {
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                });
+            </script>
+        </body>
+        </html>
+    `, {
+        headers: { 
+            'Content-Type': 'text/html',
+            'Cache-Control': 'no-cache'
+        }
+    });
+}
 
 // Background sync for offline uploads
 self.addEventListener('sync', (event) => {
@@ -355,8 +342,8 @@ async function processOfflineUploads() {
 self.addEventListener('push', (event) => {
     const options = {
         body: event.data ? event.data.text() : 'New notification from LogIt',
-        icon: '/manifest.json',
-        badge: '/manifest.json',
+        icon: '/icons/LogIt-192.png',
+        badge: '/icons/LogIt-72.png',
         vibrate: [100, 50, 100],
         data: {
             dateOfArrival: Date.now(),
@@ -366,7 +353,7 @@ self.addEventListener('push', (event) => {
             {
                 action: 'view',
                 title: 'View',
-                icon: '/manifest.json'
+                icon: '/icons/LogIt-96.png'
             },
             {
                 action: 'close',
