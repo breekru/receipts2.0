@@ -103,7 +103,7 @@ include 'header.php';
         <div class="feature-icon">
             <i class="fas fa-download"></i>
         </div>
-        <h5 class="fw-bold">Export Ready</h5>
+
         <p class="text-muted">Download receipts individually or export data for accounting software.</p>
     </div>
 </div>
