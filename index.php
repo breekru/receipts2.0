@@ -52,7 +52,7 @@ include 'header.php';
 <div class="row mb-5">
     <div class="col-lg-8 mx-auto text-center">
         <h2 class="fw-bold mb-4">Why Choose LogIt?</h2>
-        <p class="lead text-muted">Keep your receipts organized, searchable, and always accessible from any device!</p>
+        <p class="lead text-muted">Keep your receipts organized, searchable, and always accessible from any device.</p>
     </div>
 </div>
 
@@ -116,22 +116,6 @@ include 'header.php';
     </a>
 </div>
 
-<div class="card bg-light">
-    <div class="card-body text-center py-4">
-        <h5 class="fw-bold mb-3">Try the Demo</h5>
-        <p class="text-muted mb-3">Experience LogIt with our demo account</p>
-        <div class="d-flex justify-content-center gap-3">
-            <div class="text-center">
-                <strong>Username:</strong> <code>demo</code><br>
-                <strong>Password:</strong> <code>password</code>
-            </div>
-        </div>
-        <div class="mt-3">
-            <a href="login.php" class="btn btn-primary">
-                <i class="fas fa-play me-2"></i>Try Demo
-            </a>
-        </div>
-    </div>
-</div>
+
 
 <?php include 'footer.php'; ?>
