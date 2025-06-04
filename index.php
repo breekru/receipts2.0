@@ -52,7 +52,7 @@ include 'header.php';
 <div class="row mb-5">
     <div class="col-lg-8 mx-auto text-center">
         <h2 class="fw-bold mb-4">Why Choose LogIt?</h2>
-        <p class="lead text-muted">Keep your receipts organized, searchable, and always accessible from any device.</p>
+        <p class="lead text-muted">Keep your receipts organized, searchable, and always accessible from any device!</p>
     </div>
 </div>
 
